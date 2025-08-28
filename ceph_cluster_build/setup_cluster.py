@@ -10,8 +10,8 @@ ORIGINAL_VM = "cephnode1_ori"
 HOST_BASE_NAME = "cephnode"
 NO_OF_VM = 3
 BASE_IP = "192.168.122."
-START_IP = 190
-NO_OF_DEVICE = 1
+START_IP = 50
+NO_OF_DEVICE = 3
 VIRT_CLONE = "/usr/bin/virt-clone"
 
 SSH_USER = "root"
@@ -35,6 +35,18 @@ def build_authorized_keys():
                     collected_keys.add(key)
         else:
             print(f"⚠️ Skipping missing key file: {pubkey_file}")
+
+
+ # --- Add local system's public key ---
+    local_key_file = os.path.expanduser("~/.ssh/id_rsa.pub")
+    if os.path.exists(local_key_file):
+        with open(local_key_file, "r") as f:
+            local_key = f.read().strip()
+            if local_key and local_key not in collected_keys:
+                collected_keys.add(local_key)
+                print(f"➕ Added local system key: {local_key_file}")
+    else:
+        print(f"⚠️ Local public key not found: {local_key_file}")
 
     with open(AUTHORIZED_KEYS, "w") as f:
         f.write("\n".join(collected_keys) + "\n")
@@ -73,15 +85,22 @@ def cleanup_local_authorized_keys():
 def make_distribute_ssh_keys():
     build_authorized_keys()
     distribute_keys()
-    ########cleanup_local_authorized_keys()
+    cleanup_local_authorized_keys()
 
 
 
 
+def copy_file(host, src, dest, user="root"):
+    scp_cmd = f"scp {src} {user}@{host}:{dest}"
+    print(f"📤 Copying {src} -> {host}:{dest}")
+    subprocess.run(scp_cmd, shell=True, check=True)
 
 
 
-
+def run_remote(host, cmd, user="root"):
+    ssh_cmd = f"ssh {user}@{host} '{cmd}'"
+    print(f"▶️ Running remote on {host}: {cmd}")
+    subprocess.run(ssh_cmd, shell=True, check=True)
 
 
 
@@ -214,6 +233,7 @@ def clone_vm():
         run_cmd(cmd, check=True)
         create_ip_for_host(ip, public_ip)
         assign_hostname_ip_vm(host_name, ip)
+        run_cmd(f"ssh-copy-id -o StrictHostKeyChecking=no   {SSH_USER}@{host_name}")
 
         if i == START_IP:
             print(f"Adding disk(s) to {host_name}")
@@ -221,16 +241,20 @@ def clone_vm():
                 for j in range(NO_OF_DEVICE):
                     disk = f"/var/lib/libvirt/images/{host_name}_disk{j}.qcow2"
                     run_cmd(f"qemu-img create -f qcow2 {disk} 5G")
+                    time.sleep(3)
                     run_cmd(f"virsh attach-disk {host_name} {disk} vdb --cache=none --subdriver=qcow2 --persistent")
                     print(f"Disk {disk} added to {host_name}")
 
+def proision_ceph_node():
+    host_name = f"{HOST_BASE_NAME}{START_IP}"
+    copy_file(host_name, "cluster.txt", "cluster.txt", SSH_USER)
+    copy_file(host_name, "provision.py", "provision.py", SSH_USER)
+    run_remote(host_name, "./provision.py", SSH_USER)
 
 def start_ceph_vm():
     host_name = f"{HOST_BASE_NAME}{START_IP}"
     print(f"Starting Ceph VM {host_name}")
     start_vm(host_name)
-    time.sleep(10)
-
 
 def start_samba_vm():
     for i in range(START_IP + 1, START_IP + NO_OF_VM):
@@ -270,6 +294,7 @@ def main():
         start_ceph_vm()
         start_samba_vm()
         make_distribute_ssh_keys()
+        proision_ceph_node()
         print("Start ceph cluster")
 
 
