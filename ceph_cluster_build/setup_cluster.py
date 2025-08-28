@@ -4,6 +4,7 @@ import sys
 import time
 import os
 import glob
+import string
 
 # Config
 ORIGINAL_VM = "cephnode1_ori"
@@ -233,16 +234,20 @@ def clone_vm():
         run_cmd(cmd, check=True)
         create_ip_for_host(ip, public_ip)
         assign_hostname_ip_vm(host_name, ip)
-        run_cmd(f"ssh-copy-id -o StrictHostKeyChecking=no   {SSH_USER}@{host_name}")
+        run_cmd(f"ssh-copy-id -o {SSH_USER}@{host_name}")
 
         if i == START_IP:
             print(f"Adding disk(s) to {host_name}")
+            start_letter = "b"
             if check_vm_exists(host_name):
                 for j in range(NO_OF_DEVICE):
+                    letter_index = string.ascii_lowercase.index(start_letter)
+                    device_letter = string.ascii_lowercase[letter_index + j]
+                    device_name = f"vd{device_letter}"
                     disk = f"/var/lib/libvirt/images/{host_name}_disk{j}.qcow2"
                     run_cmd(f"qemu-img create -f qcow2 {disk} 5G")
-                    time.sleep(3)
-                    run_cmd(f"virsh attach-disk {host_name} {disk} vdb --cache=none --subdriver=qcow2 --persistent")
+                    time.sleep(1)
+                    run_cmd(f"virsh attach-disk {host_name} {disk} {device_name} --cache=none --subdriver=qcow2 --persistent")
                     print(f"Disk {disk} added to {host_name}")
 
 def proision_ceph_node():

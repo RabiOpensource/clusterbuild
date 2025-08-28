@@ -1,4 +1,4 @@
-START_IP = 40
+START_IP = 50
 NO_OF_VMS = 3
 BASE_IP = "192.168.122."
 SAMBA_PKG = "/root/samba_dir/samba"
