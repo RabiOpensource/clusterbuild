@@ -73,7 +73,7 @@ def cleanup_local_authorized_keys():
 def make_distribute_ssh_keys():
     build_authorized_keys()
     distribute_keys()
-    cleanup_local_authorized_keys()
+    ########cleanup_local_authorized_keys()
 
 
 
@@ -146,7 +146,6 @@ def clean_vm():
     for i in range(START_IP, START_IP + NO_OF_VM):
         host_name = f"{HOST_BASE_NAME}{i}"
         status = check_vm_status(host_name)
-        print(f"########################## {status}")
         if status == "running":
             run_cmd(f"virsh shutdown {host_name}")
             print("Sleeping 5 sec")
@@ -160,10 +159,11 @@ def clean_vm():
             print(f"🗑️ Removed {disk}")
 
 
-def create_ip_for_host(ip):
-    print(f"Generating ip configure script for {ip}")
+def create_ip_for_host(local_ip, public_ip):
+    print(f"Generating ip configure script for {local_ip} and public id {public_ip}")
     with open("ipconfigure.sh", "w") as f:
-        f.write(f'nmcli connection modify enp1s0 ipv4.addresses "{ip}/24" ipv4.gateway "192.168.122.1"\n')
+        f.write(f'nmcli connection modify enp1s0 ipv4.addresses "{local_ip}/24" ipv4.gateway "192.168.122.1"\n')
+        f.write(f'nmcli connection modify enp8s0 ipv4.addresses "{public_ip}/24" ipv4.gateway "192.168.122.1"\n')
 
 
 def generating_ssh_key(hostname, ip):
@@ -190,6 +190,8 @@ def assign_hostname_ip_vm(hostname, ip):
         run_cmd(f"sshpass -p samba ssh root@192.168.122.160 'hostnamectl hostname {hostname}'")
         run_cmd(f"sshpass -p samba scp ipconfigure.sh root@192.168.122.160:/root/.")
         run_cmd(f"sshpass -p samba ssh root@192.168.122.160 'bash ipconfigure.sh'")
+        run_cmd(f"sshpass -p samba ssh root@192.168.122.160 'rm ipconfigure.sh'")
+        run_cmd(f"rm ipconfigure.sh")
         time.sleep(5)
         stop_vm(hostname)
         start_vm(hostname)
@@ -204,12 +206,13 @@ def clone_vm():
     for i in range(START_IP, START_IP + NO_OF_VM):
         host_name = f"{HOST_BASE_NAME}{i}"
         ip = f"{BASE_IP}{i}"
+        public_ip = f"{BASE_IP}{i + 10}"
         if check_vm_exists(host_name):
             continue
         print(f"############## Cloning {host_name} #######################")
         cmd = f"{VIRT_CLONE} --original {ORIGINAL_VM} --name {host_name} --auto-clone --file /var/lib/libvirt/images/{host_name}.qcow2"
         run_cmd(cmd, check=True)
-        create_ip_for_host(ip)
+        create_ip_for_host(ip, public_ip)
         assign_hostname_ip_vm(host_name, ip)
 
         if i == START_IP:
@@ -264,8 +267,8 @@ def main():
     if "--clone" in args:
         clone_vm()
     if "--start-ceph-cluster" in args:
-#        start_ceph_vm()
-#        start_samba_vm()
+        start_ceph_vm()
+        start_samba_vm()
         make_distribute_ssh_keys()
         print("Start ceph cluster")
 
