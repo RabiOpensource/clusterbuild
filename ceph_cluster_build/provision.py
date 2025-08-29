@@ -75,6 +75,7 @@ def main():
     BASE_IP = cfg["BASE_IP"]
     SSH_USER = cfg["SSH_USER"]
     HEAD_NODE_IP = cfg["HEAD_NODE_IP"]
+    HEAD_NODE=f"cephnode{START_IP}"
 
     # --- Install Ceph packages ---
     run("dnf install -y centos-release-ceph-reef")
@@ -118,8 +119,8 @@ def main():
         # Add label
         run(f"ceph orch host label add {host} smb")
 
-    # Label cephnode1 as smb explicitly
-    run("ceph orch host label add cephnode1 smb")
+    # Label {HEAD_NODE} as smb explicitly
+    run(f"ceph orch host label add {HEAD_NODE} smb")
 
     # --- Apply OSD ---
     run("ceph orch apply osd --all-available-devices")
