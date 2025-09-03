@@ -5,15 +5,17 @@ import time
 import os
 import glob
 import string
+import tempfile
 
 # Config
-ORIGINAL_VM = "cephnode1_ori"
+ORIGINAL_VM = "CENTOSBASE"
 HOST_BASE_NAME = "cephnode"
 NO_OF_VM = 3
 BASE_IP = "192.168.122."
 START_IP = 50
 NO_OF_DEVICE = 3
 VIRT_CLONE = "/usr/bin/virt-clone"
+VIRSH = "/usr/bin/virsh"
 
 SSH_USER = "root"
 SSH_PASS = "samba"
@@ -194,8 +196,7 @@ def generating_ssh_key(hostname, ip):
     time.sleep(5)
 
 
-def assign_hostname_ip_vm(hostname, ip):
-    print(f"Assigning hostname and IP for {hostname}")
+def configuring_vm(hostname, ip):
 
     # /etc/hosts update
     with open("/etc/hosts", "r+") as f:
@@ -207,9 +208,13 @@ def assign_hostname_ip_vm(hostname, ip):
         start_vm(hostname)
 
     if check_vm_status(hostname) == "running":
-        run_cmd(f"sshpass -p samba ssh root@192.168.122.160 'hostnamectl hostname {hostname}'")
-        run_cmd(f"sshpass -p samba scp ipconfigure.sh root@192.168.122.160:/root/.")
-        run_cmd(f"sshpass -p samba ssh root@192.168.122.160 'bash ipconfigure.sh'")
+        run_cmd(f"sshpass -p samba ssh root@192.168.122.160 'mkdir -p /mnt/sambadr'")
+        run_cmd(f"sshpass -p samba ssh root@192.168.122.160 'mount -t virtiofs commonfs /mnt/sambadir'")
+
+        print(f"✅ Assigning hostname and IP for {hostname}")
+        run_cmd(f"sshpass -p samba ssh -o StrictHostKeyChecking=No root@192.168.122.160 'hostnamectl hostname {hostname}'")
+        run_cmd(f"sshpass -p samba scp -o StrictHostKeyChecking=No ipconfigure.sh root@192.168.122.160:/root/.")
+        run_cmd(f"sshpass -p samba ssh -o StrictHostKeyChecking=No root@192.168.122.160 'bash ipconfigure.sh'")
         run_cmd(f"sshpass -p samba ssh root@192.168.122.160 'rm ipconfigure.sh'")
         run_cmd(f"rm ipconfigure.sh")
         time.sleep(5)
@@ -233,7 +238,7 @@ def clone_vm():
         cmd = f"{VIRT_CLONE} --original {ORIGINAL_VM} --name {host_name} --auto-clone --file /var/lib/libvirt/images/{host_name}.qcow2"
         run_cmd(cmd, check=True)
         create_ip_for_host(ip, public_ip)
-        assign_hostname_ip_vm(host_name, ip)
+        configuring_vm(host_name, ip)
         run_cmd(f"ssh-copy-id -o {SSH_USER}@{host_name}")
 
         if i == START_IP:
@@ -250,7 +255,18 @@ def clone_vm():
                     run_cmd(f"virsh attach-disk {host_name} {disk} {device_name} --cache=none --subdriver=qcow2 --persistent")
                     print(f"Disk {disk} added to {host_name}")
 
-def proision_ceph_node():
+def provision_samba_node(host, start_ip, no_vms):
+    print("\n####################  PROVSION SAMBA NODE ############################")
+    for samba_node in range(start_ip + 1, start_ip + no_vms):
+        host_name = f"{host}{samba_node}"
+        print(f"\n⚙️ Setting up Samba on {host_name}")
+        copy_file(host_name, "cluster.txt", "cluster.txt", SSH_USER)
+        copy_file(host_name, "deploy_samba_cluster.py", "deploy_samba_cluster.py", SSH_USER)
+        copy_file(host_name, "installsamba.sh", "installsamba.sh", SSH_USER)
+        run_remote(host_name, "python3 deploy_samba_cluster.py", SSH_USER)
+
+def provision_ceph_node():
+    print("\n####################  PROVSION CEPH NODE  #############################")
     host_name = f"{HOST_BASE_NAME}{START_IP}"
     copy_file(host_name, "cluster.txt", "cluster.txt", SSH_USER)
     copy_file(host_name, "provision.py", "provision.py", SSH_USER)
@@ -286,7 +302,8 @@ def start_samba_cluster():
         host_name = f"{HOST_BASE_NAME}{i}"
         start_vm(host_name)
         print(f"Setting up Samba + CTDB on {host_name}")
-        run_cmd(f"ssh {host_name} 'sudo systemctl enable smb ctdb && sudo systemctl start smb ctdb && sudo ctdb status'")
+        copy_file(host_name, "deploy_samba_cluster.py", SSH_USER)
+        run_remote(host_name, "./deploy_samba_cluster.py", SSH_USER)
 
 
 def main():
@@ -295,11 +312,14 @@ def main():
         clean_vm()
     if "--clone" in args:
         clone_vm()
+    if "--start_samba_cluster" in args:
+        provision_samba_node(HOST_BASE_NAME, START_IP, NO_OF_VM)
     if "--start-ceph-cluster" in args:
         start_ceph_vm()
         start_samba_vm()
         make_distribute_ssh_keys()
-        proision_ceph_node()
+        provision_ceph_node()
+        provision_samba_node(HOST_BASE_NAME, START_IP, NO_OF_VM)
         print("Start ceph cluster")
 
 

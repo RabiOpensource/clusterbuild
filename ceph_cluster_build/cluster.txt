@@ -1,7 +1,8 @@
 START_IP = 50
 NO_OF_VMS = 3
 BASE_IP = "192.168.122."
-SAMBA_PKG = "/root/samba_dir/samba"
+SAMBA_PKG = "/mnt/commonfs/bin"
 SSH_USER = "root"
 PATH_TO_CONFIGURE = "/usr/local/samba"
 SSH_PASS = "samba"
+SAMBA_PATH = "/mnt/commonfs/"

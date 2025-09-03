@@ -36,7 +36,7 @@ def run(cmd, check=True, capture_output=False):
         capture_output=capture_output
     )
 
-def ensure_host_in_etc_hosts(ip: str, hostname: str, hosts_file: str = "/etc/hosts"):
+def configure_host_in_etc_hosts(ip: str, hostname: str, hosts_file: str = "/etc/hosts"):
     """ 
     Ensure that the given hostname is mapped to the given IP in /etc/hosts.
     If the hostname does not exist, append it.
@@ -78,14 +78,15 @@ def main():
     HEAD_NODE=f"cephnode{START_IP}"
 
     # --- Install Ceph packages ---
-    run("dnf install -y centos-release-ceph-reef")
-    run("dnf install -y cephadm")
+    run("dnf install -y centos-release-ceph-squid")
+    run("dnf install -y cephadm python3-pyyaml python3-jinja2")
     run("cephadm add-repo --dev main")
     run("dnf update -y cephadm")
-
     # --- Bootstrap Ceph cluster ---
     run("cephadm install ceph-common")
+    run(f"cephadm bootstrap --mon-ip={HEAD_NODE_IP} --skip-dashboard --allow-overwrite")
     run(f"cephadm bootstrap --mon-ip={HEAD_NODE_IP} --initial-dashboard-password='x' --allow-overwrite")
+
 
     # --- SSH config for cephnode?? ---
     ssh_config = "/root/.ssh/config"
@@ -94,13 +95,18 @@ def main():
         f.write("\tStrictHostKeyChecking no\n")
         f.write("\tUpdateHostKeys yes\n")
 
-    # --- Loop through all VMs ---
+    
     for i in range(START_IP, NO_OF_VMS + 1):
+        configure_host_in_etc_hosts(ip, host)
+
+    # --- Loop through all VMs ---
+    for i in range(START_IP + 1, NO_OF_VMS + 1):
         host = f"cephnode{i}"
         ip = f"{BASE_IP}{START_IP + i}"
 
-        ensure_host_in_etc_hosts(ip, host)
         print(f"\n➡️ Processing {host} ({ip})")
+        run(f"ssh-keygen -R {host} || true", check=False)
+        run(f"ssh-keygen -R {ip} || true", check=False)
 
         # Wait until SSH is available
         while run(f"ssh {SSH_USER}@{host} /bin/true", check=False).returncode != 0:
@@ -108,16 +114,33 @@ def main():
             time.sleep(1)
 
         # Copy ceph.pub
-        run(f"ssh-copy-id -f -i /etc/ceph/ceph.pub {SSH_USER}@{host}")
+        result = run(f"ssh-copy-id -f -i /etc/ceph/ceph.pub {SSH_USER}@{host}", check=False)
+        if result.returncode != 0:
+            print(f"❌ Failed to copy SSH key to {host}")
+        else:
+            print(f"✅ SSH key copied to {host}")
+        time.sleep(2)
 
         # Install podman
-        run(f"ssh {host} dnf install -y podman")
+        result = run(f"ssh {host} dnf install -y podman", check=False).returncode != 0:
+        if result.returncode != 0:
+            print(f"❌ Failed to dnf install -y podman to {host}")
+        else:
+            print(f"✅ ssh {host} dnf install -y podman")
 
         # Add host to orchestrator
-        run(f"ceph orch host add {host} {ip}")
+        result = run(f"ceph orch host add {host} {ip}", check=False)
+        if result.returncode != 0:
+            print(f"❌ Failed to add host {host} ({ip}) to orchestrator")
+        else:
+            print(f"✅ Host {host} ({ip}) added to orchestrator")
 
         # Add label
-        run(f"ceph orch host label add {host} smb")
+        result = run(f"ceph orch host label add {host} smb", check=False)
+        if result.returncode != 0:
+            print(f"❌ Failed to add label 'smb' to {host}")
+        else:
+            print(f"✅ Label 'smb' added to {host}")
 
     # Label {HEAD_NODE} as smb explicitly
     run(f"ceph orch host label add {HEAD_NODE} smb")
