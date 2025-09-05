@@ -85,7 +85,7 @@ def main():
     # --- Bootstrap Ceph cluster ---
     run("cephadm install ceph-common")
     run(f"cephadm bootstrap --mon-ip={HEAD_NODE_IP} --skip-dashboard --allow-overwrite")
-    run(f"cephadm bootstrap --mon-ip={HEAD_NODE_IP} --initial-dashboard-password='x' --allow-overwrite")
+#    run(f"cephadm bootstrap --mon-ip={HEAD_NODE_IP} --initial-dashboard-password='x' --allow-overwrite")
 
 
     # --- SSH config for cephnode?? ---
@@ -113,6 +113,8 @@ def main():
             print(f"⏳ Waiting for {host} SSH ...")
             time.sleep(1)
 
+        run(f"ssh {SSH_USER}@{host} 'mkdir -p /etc/ceph'")
+
         # Copy ceph.pub
         result = run(f"ssh-copy-id -f -i /etc/ceph/ceph.pub {SSH_USER}@{host}", check=False)
         if result.returncode != 0:
@@ -122,7 +124,7 @@ def main():
         time.sleep(2)
 
         # Install podman
-        result = run(f"ssh {host} dnf install -y podman", check=False).returncode != 0:
+        result = run(f"ssh {SSH_USER}@{host} dnf install -y podman", check=False)
         if result.returncode != 0:
             print(f"❌ Failed to dnf install -y podman to {host}")
         else:
