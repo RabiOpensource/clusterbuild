@@ -283,22 +283,6 @@ def start_ceph_vm(config):
     except Exception as e:
         print(f"❌ Failed to start Ceph VM {ceph_vm_name}: {e}")
 
-def start_ceph_vm(config):
-    start_ip = int(config["START_IP"])
-    base_ip = config["BASE_IP"]
-    host_base_name = config["HOST_BASE_NAME"]
-
-    # Ceph VM is the first VM in the cluster
-    ceph_vm_name = f"{host_base_name}{start_ip}"
-    ceph_vm_ip = f"{base_ip}{start_ip}"
-
-    print(f"🚀 Starting Ceph VM {ceph_vm_name} ({ceph_vm_ip})")
-    try:
-        start_vm(ceph_vm_name)
-        print(f"✅ Ceph VM {ceph_vm_name} started successfully")
-    except Exception as e:
-        print(f"❌ Failed to start Ceph VM {ceph_vm_name}: {e}")
-
 def start_samba_vm(config):
     start_ip = int(config["START_IP"])
     no_of_vms = int(config["NO_OF_VMS"])
