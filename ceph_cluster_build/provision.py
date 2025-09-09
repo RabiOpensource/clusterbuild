@@ -88,12 +88,6 @@ def main():
 #    run(f"cephadm bootstrap --mon-ip={HEAD_NODE_IP} --initial-dashboard-password='x' --allow-overwrite")
 
 
-    # --- SSH config for cephnode?? ---
-    ssh_config = "/root/.ssh/config"
-    with open(ssh_config, "w") as f:
-        f.write("Host cephnode??\n")
-        f.write("\tStrictHostKeyChecking no\n")
-        f.write("\tUpdateHostKeys yes\n")
 
     
     for i in range(START_IP, NO_OF_VMS + 1):
@@ -103,6 +97,13 @@ def main():
     for i in range(START_IP + 1, NO_OF_VMS + 1):
         host = f"cephnode{i}"
         ip = f"{BASE_IP}{START_IP + i}"
+
+        # --- SSH config for cephnode?? ---
+        ssh_config = "/root/.ssh/config"
+        with open(ssh_config, "w") as f:
+            f.write("Host {host}\n")
+            f.write("\tStrictHostKeyChecking no\n")
+            f.write("\tUpdateHostKeys yes\n")
 
         print(f"\n➡️ Processing {host} ({ip})")
         run(f"ssh-keygen -R {host} || true", check=False)

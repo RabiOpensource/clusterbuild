@@ -16,7 +16,7 @@ def create_ip_for_host(config, local_ip, public_ip, filename="ipconfigure.sh"):
     """
     cluster_iface = config.get("CLUSTER_INTERFACE", "enp1s0")
     public_iface = config.get("PUBLIC_INTERFACE", "enp8s0")
-    gateway = config.get("GATEWAY", "192.168.122.1")
+    gateway = config.get("GATEWAY", "192.168.100.1")
 
     print(f"📝 Generating {filename} for {local_ip} (cluster) and {public_ip} (public)")
 
@@ -130,14 +130,14 @@ def configuring_vm(config, hostname, ip, public_ip):
         start_vm(hostname)
 
     if check_vm_status(hostname) == "running":
-        run_cmd(f"sshpass -p samba ssh root@192.168.122.160 'mkdir -p /mnt/sambadr'")
-        run_cmd(f"sshpass -p samba ssh root@192.168.122.160 'mount -t virtiofs commonfs /mnt/sambadir'")
+        run_cmd(f"sshpass -p samba ssh root@192.168.100.160 'mkdir -p /mnt/sambadr'")
+        run_cmd(f"sshpass -p samba ssh root@192.168.100.160 'mount -t virtiofs commonfs /mnt/sambadir'")
 
         print(f"✅ Assigning hostname and IP for {hostname}")
-        run_cmd(f"sshpass -p samba ssh -o StrictHostKeyChecking=No {ssh_user}@192.168.122.160 'hostnamectl hostname {hostname}'")
-        run_cmd(f"sshpass -p samba scp -o StrictHostKeyChecking=No ipconfigure.sh {ssh_user}@192.168.122.160:/root/.")
-        run_cmd(f"sshpass -p samba ssh -o StrictHostKeyChecking=No {ssh_user}@192.168.122.160 'bash ipconfigure.sh'")
-        run_cmd(f"sshpass -p samba ssh {ssh_user}@192.168.122.160 'rm ipconfigure.sh'")
+        run_cmd(f"sshpass -p samba ssh -o StrictHostKeyChecking=No {ssh_user}@192.168.100.160 'hostnamectl hostname {hostname}'")
+        run_cmd(f"sshpass -p samba scp -o StrictHostKeyChecking=No ipconfigure.sh {ssh_user}@192.168.100.160:/root/.")
+        run_cmd(f"sshpass -p samba ssh -o StrictHostKeyChecking=No {ssh_user}@192.168.100.160 'bash ipconfigure.sh'")
+        run_cmd(f"sshpass -p samba ssh {ssh_user}@192.168.100.160 'rm ipconfigure.sh'")
         run_cmd(f"rm ipconfigure.sh")
         time.sleep(5)
         stop_vm(hostname)
@@ -399,6 +399,10 @@ def main():
         print("Ceph provision not yet refactored")
     if "--single-ceph-single-samba" in args:
         config["NO_OF_VMS"] = 2
+        clone_vm(config)
+        start_ceph_vm(config)
+        start_samba_vm(config)
+        make_distribute_ssh_keys(config)
         print("Single Ceph + Samba clone not yet refactored")
 
 if __name__ == "__main__":
