@@ -334,7 +334,7 @@ def provision_samba_node(config):
 
     if (no_of_samba_vms > 1):
         # Samba nodes start after Ceph node
-        for i in range(start_ip + 1, start_ip + no_of_vms):
+        for i in range(start_ip + no_of_vms - no_of_samba_vms, start_ip + no_of_vms):
             samba_vm_name = f"{host_base_name}{i}"
             samba_vm_ip = f"{base_ip}{i}"
 
