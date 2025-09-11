@@ -107,11 +107,6 @@ def main():
     print(f"Head Node: {HEAD_NODE}")
     print(f"Samba cluster Nodes: {SAMBA_NODES}")
 
-    run_cmd("mkdir -p /mnt-cephfs/volumes/_nogroup/smbshares/share1")
-    run_cmd("touch /mnt-cephfs/volumes/_nogroup/smbshares/cluster_lock")
-    run_cmd("chmod 0777 /mnt-cephfs/volumes/_nogroup/smbshares/share1")
-    run_cmd("/usr/local/samba/private/")
-
     run_cmd(f"mount -t virtiofs commonfs /mnt/commonfs/")
     time.sleep(5)
     if not os.path.exists(SAMBA_PKG):

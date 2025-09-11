@@ -325,27 +325,29 @@ def provision_ceph_node(config):
 def provision_samba_node(config):
     start_ip = int(config["START_IP"])
     no_of_vms = int(config["NO_OF_VMS"])
+    no_of_samba_vms = int(config["NO_OF_SAMBA_VMS"])
     base_ip = config["BASE_IP"]
     host_base_name = config["HOST_BASE_NAME"]
     ssh_user = config["SSH_USER"]
 
     print("\n####################  PROVISION SAMBA NODES ############################")
 
-    # Samba nodes start after Ceph node
-    for i in range(start_ip + 1, start_ip + no_of_vms):
-        samba_vm_name = f"{host_base_name}{i}"
-        samba_vm_ip = f"{base_ip}{i}"
+    if (no_of_samba_vms > 1):
+        # Samba nodes start after Ceph node
+        for i in range(start_ip + 1, start_ip + no_of_vms):
+            samba_vm_name = f"{host_base_name}{i}"
+            samba_vm_ip = f"{base_ip}{i}"
 
-        print(f"\n⚙️  Provisioning Samba on {samba_vm_name} ({samba_vm_ip})")
+            print(f"\n⚙️  Provisioning Samba on {samba_vm_name} ({samba_vm_ip})")
 
-        try:
-            copy_file(samba_vm_name, "cluster.txt", "cluster.txt", ssh_user)
-            copy_file(samba_vm_name, "deploy_samba_cluster.py", "deploy_samba_cluster.py", ssh_user)
-            copy_file(samba_vm_name, "installsamba.sh", "installsamba.sh", ssh_user)
-            run_remote(samba_vm_name, "python3 deploy_samba_cluster.py", ssh_user)
-            print(f"✅ Samba node {samba_vm_name} provisioned successfully")
-        except Exception as e:
-            print(f"❌ Failed to provision Samba node {samba_vm_name}: {e}")
+            try:
+                copy_file(samba_vm_name, "cluster.txt", "cluster.txt", ssh_user)
+                copy_file(samba_vm_name, "deploy_samba_cluster.py", "deploy_samba_cluster.py", ssh_user)
+                copy_file(samba_vm_name, "installsamba.sh", "installsamba.sh", ssh_user)
+                run_remote(samba_vm_name, "python3 deploy_samba_cluster.py", ssh_user)
+                print(f"✅ Samba node {samba_vm_name} provisioned successfully")
+            except Exception as e:
+                print(f"❌ Failed to provision Samba node {samba_vm_name}: {e}")
 
 def cleanup_vms(config):
     start_ip = int(config["START_IP"])
