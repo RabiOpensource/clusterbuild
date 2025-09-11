@@ -2,6 +2,7 @@
 import os
 import subprocess
 import time
+import pwd
 
 CONFIG_FILE = "cluster.txt"
 
@@ -17,6 +18,19 @@ def load_config(file_path=CONFIG_FILE):
                 key, value = line.split("=", 1)
                 config[key.strip()] = value.strip().strip('"')
     return config
+
+def add_user(username, password="samba", prefix_path=""):
+    try:
+        # Check if user exists
+        pwd.getpwnam(username)
+        print(f"User {username} already exists.")
+    except KeyError:
+        # User does not exist → create it
+        print(f"User {username} does not exist. Creating...")
+        run_cmd(f"useradd -M -s /bin/bash {username} || true")
+        run_cmd(f"(echo '{password}'; echo '{password}') | {prefix_path}/bin/smbpasswd -s -a {username}")
+
+        print(f"User {username} created successfully.")
 
 def run_cmd(cmd):
     print(f"▶️ Running local: {cmd}")
@@ -128,12 +142,10 @@ def main():
         run_cmd(f"firewall-cmd --zone=public --permanent --add-port={port}")
     run_cmd("systemctl restart firewalld")
 
-    run_cmd(f"useradd -M -s /sbin/nologin user1 || true")
-    run_cmd(f"(echo s1ngt3l; echo s1ngt3l) | passwd user1")
-    run_cmd(f"(echo s1ngt3l; echo s1ngt3l) | /mnt/commonfs/bin/smbpasswd -a user1")
+    add_user("user1", "samba", PREFIX_PATH)
 
     for script in ["00.ctdb", "01.reclock", "05.system", "10.interface", "95.database"]:
-        run_cmd(f"/mnt/commonfs/bin/ctdb event script enable legacy {script}")
+        run_cmd(f"{PREFIX_PATH}/bin/ctdb event script enable legacy {script}")
 
     time.sleep(10)
     run_cmd(f"{PREFIX_PATH}/sbin/smbd -D")
