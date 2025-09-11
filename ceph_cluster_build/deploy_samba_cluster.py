@@ -136,7 +136,9 @@ def main():
 
     write_ctdb_conf_file(PREFIX_PATH)
     write_ip_to_node(PREFIX_PATH, SAMBA_NODES)
-    write_public_address(NETWORK_INTERFACE, BASE_IP, NO_OF_VMS, START_IP, PREFIX_PATH)
+    write_public_address(NETWORK_INTERFACE, BASE_IP, NO_SAMBA_VMS,
+                         START_IP + NO_OF_VMS - NO_SAMBA_VMS,
+                         PREFIX_PATH)
     write_smb_conf_file(PREFIX_PATH)
 
 
