@@ -1,2 +1,2 @@
 cd /mnt/commonfs/samba
-make install
+./configure --enable-debug --without-ldb-lmdb --without-json  --without-ad-dc --enable-selftest --with-cluster-support; make all -j$(nproc)
