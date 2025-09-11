@@ -1,2 +1,2 @@
-cd /mnt/commonfs
+cd /mnt/commonfs/samba
 make install
