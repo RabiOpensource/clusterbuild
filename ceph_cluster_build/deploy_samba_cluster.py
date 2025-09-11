@@ -114,10 +114,14 @@ def main():
     SAMBA_PATH = cfg["SAMBA_PATH"]
     SSH_PASS = cfg.get("SSH_PASS", "")
     NETWORK_INTERFACE = cfg.get("NETWORK_INTERFACE", "enp8s0")
+    NO_SAMBA_VMS = int(cfg["NO_OF_SAMBA_VMS"])
 
     HEAD_NODE = f'{BASE_IP}{START_IP}'
     ALL_NODES = [f"{BASE_IP}{START_IP}" for i in range(NO_OF_VMS)]
-    SAMBA_NODES = [f"{BASE_IP}{START_IP + i}" for i in range(NO_OF_VMS)]
+    SAMBA_NODES = [
+        f"{BASE_IP}{ip}"
+        for ip in range(START_IP + NO_OF_VMS - NO_SAMBA_VMS, START_IP + NO_OF_VMS)
+    ]
 
     print(f"Head Node: {HEAD_NODE}")
     print(f"Samba cluster Nodes: {SAMBA_NODES}")
