@@ -70,12 +70,13 @@ def write_public_address(device, base_ip, no_of_vms, start_ip, prefix_path):
 
 #files are related to samba so we are giving PREFIX_PATH
 def write_ctdb_conf_file(prefix_path):
-    ctdb_conf = """
+    ctdb_conf =f"""
 [logging]
-        location = syslog
+        log file = {prefix_path}/var/log/log.ctdb
         log level = NOTICE
 
 [cluster]
+        recovery lock = {prefix_path}/etc/ctdb/reclock
         cluster lock = /mnt-cephfs/volumes/_nogroup/smbshares/cluster_lock
 """
     os.makedirs(f"{prefix_path}/etc/ctdb", exist_ok=True)
@@ -148,9 +149,9 @@ def main():
         run_cmd(f"{PREFIX_PATH}/bin/ctdb event script enable legacy {script}")
 
     time.sleep(10)
-    run_cmd(f"{PREFIX_PATH}/sbin/smbd -D")
-    time.sleep(10)
     run_cmd(f"{PREFIX_PATH}/sbin/ctdbd")
+    time.sleep(10)
+    run_cmd(f"{PREFIX_PATH}/sbin/smbd -D")
 
     
 
