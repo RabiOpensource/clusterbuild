@@ -77,7 +77,7 @@ def write_ctdb_conf_file(prefix_path):
 
 [cluster]
         recovery lock = {prefix_path}/etc/ctdb/reclock
-        cluster lock = /mnt-cephfs/volumes/_nogroup/smbshares/cluster_lock
+        cluster lock = {prefix_path}/etc/ctdb/cluster_lock
 """
     os.makedirs(f"{prefix_path}/etc/ctdb", exist_ok=True)
     with open(f"{prefix_path}/etc/ctdb/ctdb.conf", "w") as f:
