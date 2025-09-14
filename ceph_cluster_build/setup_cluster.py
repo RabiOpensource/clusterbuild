@@ -243,7 +243,7 @@ def get_vm_ips(vm_name):
     return ips
 def get_gateway_over_ssh(vm_ip, user="root", password="samba"):
     """SSH into VM and extract default gateway from `ip route`."""
-    cmd = ["ssh", "-o", "StrictHostKeyChecking=no", f"{user}@{vm_ip}", "ip route | grep default"]
+    cmd = ["sshpass -p {password}", "ssh", "-o", "StrictHostKeyChecking=no", f"{user}@{vm_ip}", "ip route | grep default"]
     output = run_cmd(cmd)
     match = re.search(r'default via (\d+\.\d+\.\d+\.\d+)', output)
     if match:
