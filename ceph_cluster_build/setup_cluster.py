@@ -6,7 +6,7 @@ import os
 import glob
 import string
 
-CONFIG_FILE = "cluster.txt"
+CONFIG_FILE = "cluster.config"
 VIRT_CLONE = "/usr/bin/virt-clone"
 
 def create_ip_for_host(config, local_ip, public_ip, filename="ipconfigure.sh"):
@@ -273,7 +273,7 @@ def stop_vm(vm_name):
     if status == "running":
         print(f"{vm_name} VM is running. Shutting it down")
         run_cmd(f"virsh shutdown {vm_name}")
-        time.sleep(5)
+        while check_vm_status(vm_name) == "running": time.sleep(1)
     elif status in ("shut off", "paused"):
         print(f"{vm_name} VM is not running")
     elif status == "crashed":
