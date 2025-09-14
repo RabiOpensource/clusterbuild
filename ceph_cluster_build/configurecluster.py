@@ -44,5 +44,9 @@ def read_config(file_path, group, key):
 
 def update_gateway_to_config(config_file, ip, gateway):
     key = "GATEWAY"
-    update_ini(config_file, "GENERAL", key, gateway)
+    update_config(CLUSTER_FILE, "GENERAL", key, gateway)
     print(f"✅ Gateway {gateway} is updated in cluster config")
+
+def update_base_ip_to_config(ipaddress: str) -> str:
+    baseip = '.'.join(ipaddress.split('.')[:3]) + '.'
+    update_config(CLUSTER_FILE, "GENERAL", "BASE_IP", baseip)
