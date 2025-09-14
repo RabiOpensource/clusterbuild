@@ -152,14 +152,14 @@ def configuring_vm(config, hostname, ip, public_ip):
         sys.exit(1)
 
 def clone_vm(config):
-    start_ip = int(config['START_IP'])
-    no_of_vm = int(config["NO_OF_VMS"])
-    base_ip = config["BASE_IP"]
-    ssh_user = config["SSH_USER"]
-    ssh_pwd = config.get("SSH_PASS", "")
-    host_base_name = config.get("HOST_BASE_NAME")
-    original_vm = config.get("ORIGINAL_VM")
-    no_of_device = int(config.get("NO_OF_DEVICE"))
+    start_ip = int(read_config('START_IP'))
+    no_of_vm = int(read_config('NO_OF_VMS'))
+    base_ip = read_config('BASE_IP')
+    ssh_user = read_config('SSH_USER')
+    ssh_pwd = read_config('SSH_PASS')
+    host_base_name = read_config('HOST_BASE_NAME')
+    original_vm = read_config('ORIGINAL_VM')
+    no_of_device = int(read_config('NO_OF_DEVICE'))
 
     for i in range(start_ip, start_ip + no_of_vm):
         host_name = f"{host_base_name}{i}"
