@@ -345,7 +345,7 @@ def provision_ceph_node(config):
     print(f"⚙️  Provisioning Ceph on {ceph_vm_name} ({ceph_vm_ip})")
 
     try:
-        copy_file(ceph_vm_name, "cluster.txt", "cluster.txt", ssh_user)
+        copy_file(ceph_vm_name, "cluster.config", "cluster.config", ssh_user)
         copy_file(ceph_vm_name, "provision.py", "provision.py", ssh_user)
         run_remote(ceph_vm_name, "python3 provision.py", ssh_user)
         print(f"✅ Ceph node {ceph_vm_name} provisioned successfully")
@@ -371,7 +371,7 @@ def provision_samba_node(config):
             print(f"\n⚙️  Provisioning Samba on {samba_vm_name} ({samba_vm_ip})")
 
             try:
-                copy_file(samba_vm_name, "cluster.txt", "cluster.txt", ssh_user)
+                copy_file(samba_vm_name, "cluster.config", "cluster.config", ssh_user)
                 copy_file(samba_vm_name, "deploy_samba_cluster.py", "deploy_samba_cluster.py", ssh_user)
                 copy_file(samba_vm_name, "installsamba.sh", "installsamba.sh", ssh_user)
                 run_remote(samba_vm_name, "python3 deploy_samba_cluster.py", ssh_user)
