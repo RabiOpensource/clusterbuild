@@ -2,9 +2,9 @@
 import configparser
 import os
 
-CLUSTER_FILE = "cluster.txt"
+CLUSTER_FILE = "cluster.config"
 
-def update_config(file_path, group, key, value):
+def update_config(key, value, group:str = "GENERAL", file_path: str = CLUSTER_FILE):
     config = configparser.ConfigParser()
     config.optionxform = str  # keep case
 
@@ -23,7 +23,7 @@ def update_config(file_path, group, key, value):
     with open(file_path, "w") as f:
         config.write(f)
 
-def read_config(file_path, group, key):
+def read_config(key: str, group: str = "GENERAL", file_path: str = CLUSTER_FILE):
     config = configparser.ConfigParser()
     config.optionxform = str  # keep case
 
@@ -44,9 +44,9 @@ def read_config(file_path, group, key):
 
 def update_gateway_to_config(config_file, ip, gateway):
     key = "GATEWAY"
-    update_config(CLUSTER_FILE, "GENERAL", key, gateway)
+    update_config(key, gateway)
     print(f"✅ Gateway {gateway} is updated in cluster config")
 
 def update_base_ip_to_config(ipaddress: str) -> str:
     baseip = '.'.join(ipaddress.split('.')[:3]) + '.'
-    update_config(CLUSTER_FILE, "GENERAL", "BASE_IP", baseip)
+    update_config("BASE_IP", baseip)

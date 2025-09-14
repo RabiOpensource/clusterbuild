@@ -5,6 +5,7 @@ import time
 import os
 import glob
 import string
+import re
 from configurecluster import *
 
 CONFIG_FILE = "cluster.config"
@@ -232,11 +233,14 @@ def run_cmd(cmd, check=False, capture=True):
     return result.stdout.strip() if capture else ""
 
 # ---------------- VM HANDLING ----------------
+def get_base_ip_from_ip(ip: str) -> str:
+    return '.'.join(ip.split('.')[:3]) + '.'
 def get_vm_ips(vm_name):
     """Return all IPv4 addresses of a VM as a list."""
-    output = run_cmd(["virsh", "domifaddr", vm_name])
+    output = run_cmd(f"virsh domifaddr {vm_name}")
     ips = []
     for line in output.splitlines():
+        print(line)
         # Match IPv4 addresses like 192.168.122.176/24
         match = re.search(r'(\d+\.\d+\.\d+\.\d+)/\d+', line)
         if match:
@@ -244,7 +248,7 @@ def get_vm_ips(vm_name):
     return ips
 def get_gateway_over_ssh(vm_ip, user="root", password="samba"):
     """SSH into VM and extract default gateway from `ip route`."""
-    cmd = ["sshpass -p {password}", "ssh", "-o", "StrictHostKeyChecking=no", f"{user}@{vm_ip}", "ip route | grep default"]
+    cmd = f"sshpass -p {password} ssh -o StrictHostKeyChecking=no {user}@{vm_ip} ip route | grep default"
     output = run_cmd(cmd)
     match = re.search(r'default via (\d+\.\d+\.\d+\.\d+)', output)
     if match:
@@ -408,10 +412,39 @@ def cleanup_vms(config):
 
     print("✅ Cleanup completed")
 
+def cluster_init():
+    base_vm = read_config("ORIGINAL_VM")
+    base_ip = read_config("BASE_IP")
+    gateway = read_config("GATEWAY")
+
+    print(f"######################        BASE_IP = {base_ip}")
+
+    if not base_vm:
+        raise ValueError("BASE_VM (ORIGINAL_VM) not defined in GENERAL section")
+
+    # Step 2: If both BASE_IP and GATEWAY exist, nothing to do
+    if base_ip and gateway:
+        print(f"BASE_IP = {base_ip}, GATEWAY = {gateway} already defined")
+
+    else :
+        start_vm(base_vm)
+
+        ips = get_vm_ips(base_vm)
+        if not ips:
+            raise RuntimeError(f"Cannot get IP address for {base_vm}")
+
+        first_ip = ips[0]
+        base_ip = get_base_ip_from_ip(first_ip)
+        gateway = get_gateway_over_ssh(first_ip)  # replace with actual gateway detection
+
+        update_config("BASE_IP", base_ip)
+        update_config("GATEWAY", gateway)
+        stop_vm(base_vm)
 
 
 # ---------------- MAIN ENTRY ----------------
 def main():
+    cluster_init()
     args = sys.argv[1:]
     config = load_config(CONFIG_FILE)
 
