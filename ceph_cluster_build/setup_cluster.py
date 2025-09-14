@@ -231,6 +231,17 @@ def run_cmd(cmd, check=False, capture=True):
     return result.stdout.strip() if capture else ""
 
 # ---------------- VM HANDLING ----------------
+def get_vm_ips(vm_name):
+    """Return all IPv4 addresses of a VM as a list."""
+    output = run_cmd(["virsh", "domifaddr", vm_name])
+    ips = []
+    for line in output.splitlines():
+        # Match IPv4 addresses like 192.168.122.176/24
+        match = re.search(r'(\d+\.\d+\.\d+\.\d+)/\d+', line)
+        if match:
+            ips.append(match.group(1))
+    return ips
+
 def check_vm_exists(vm_name):
     out = run_cmd(f"virsh list --all | grep -w {vm_name}", check=False)
     return bool(out)
