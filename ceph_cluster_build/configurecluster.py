@@ -4,50 +4,40 @@ import os
 
 CLUSTER_FILE = "cluster.txt"
 
-def update_cluster_file(group, results):
-    """
-    Update or append entries in cluster.txt (INI format).
-    
-    :param group: Section name (e.g., "CENTOSBASE") or None/"GENERAL"
-    :param results: dict of {key: value}
-    """
+def update_config(file_path, group, key, value):
     config = configparser.ConfigParser()
-    config.optionxform = str  # preserve case sensitivity
+    config.optionxform = str  # keep case
 
-    # Load existing cluster.txt
-    if os.path.exists(CLUSTER_FILE):
-        config.read(CLUSTER_FILE)
-    else:
+    if os.path.exists(file_path):
+        config.read(file_path)
+
+    if "GENERAL" not in config:
         config["GENERAL"] = {}
 
-    # Default to GENERAL if group not defined
-    section = group if group and group != "GENERAL" else "GENERAL"
-
-    # Ensure section exists
+    section = group if group in config else "GENERAL"
     if section not in config:
         config[section] = {}
 
-    # Update keys in the section
-    for key, value in results.items():
-        config[section][key] = value if value else "UNKNOWN"
+    config[section][key] = value
 
-    # Write back to cluster.txt
-    with open(CLUSTER_FILE, "w") as f:
+    with open(file_path, "w") as f:
         config.write(f)
 
-if __name__ == "__main__":
-    # Example usage
-    general_updates = {
-        "SSH_USER": "root",
-        "NO_OF_VMS": "5"
-    }
-    update_cluster_file("GENERAL", general_updates)
+def read_config(file_path, group, key):
+    config = configparser.ConfigParser()
+    config.optionxform = str  # keep case
 
-    vm_updates = {
-        "192.168.122.176_GATEWAY": "192.168.122.1",
-        "192.168.122.155_GATEWAY": "192.168.122.1"
-    }
-    update_cluster_file("CENTOSBASE", vm_updates)
+    if not os.path.exists(file_path):
+        return None
 
-    print("cluster.txt updated (test mode)")
+    config.read(file_path)
 
+    # Try given group first
+    if group in config and key in config[group]:
+        return config[group][key]
+
+    # Fallback to GENERAL
+    if "GENERAL" in config and key in config["GENERAL"]:
+        return config["GENERAL"][key]
+
+    return None
