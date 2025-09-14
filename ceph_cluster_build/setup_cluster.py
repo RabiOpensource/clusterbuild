@@ -23,8 +23,8 @@ def create_ip_for_host(config, local_ip, public_ip, filename="ipconfigure.sh"):
     print(f"📝 Generating {filename} for {local_ip} (cluster) and {public_ip} (public)")
 
     with open(filename, "w") as f:
-        f.write(f'nmcli connection modify {cluster_iface} ipv4.addresses "{local_ip}/24" ipv4.gateway "{gateway}"\n')
-        f.write(f'nmcli connection modify {public_iface} ipv4.addresses "{public_ip}/24" ipv4.gateway "{gateway}"\n')
+        f.write(f'nmcli connection modify {cluster_iface} ipv4.addresses "{local_ip}/24" ipv4.gateway "{gateway}" ipv4.method manual\n')
+        f.write(f'nmcli connection modify {public_iface} ipv4.addresses "{public_ip}/24" ipv4.gateway "{gateway}" ipv4.method manual\n')
 
     print(f"✅ IP configuration script written: {filename}")
 
@@ -108,13 +108,6 @@ def generating_ssh_key(hostname, ip):
     time.sleep(5)
 
 def configuring_vm(config, hostname, ip, public_ip):
-    """
-    Configure a VM with hostname, IPs, and SSH access.
-    - Updates /etc/hosts
-    - Sets hostname
-    - Applies IP configuration using generated ipconfigure.sh
-    - Generates and collects SSH keys
-    """
     ssh_user = config["SSH_USER"]
     ssh_pass = config.get("SSH_PASS", "samba")
 
@@ -132,14 +125,18 @@ def configuring_vm(config, hostname, ip, public_ip):
         start_vm(hostname)
 
     if check_vm_status(hostname) == "running":
-        run_cmd(f"sshpass -p samba ssh root@192.168.100.160 'mkdir -p /mnt/sambadr'")
-        run_cmd(f"sshpass -p samba ssh root@192.168.100.160 'mount -t virtiofs commonfs /mnt/sambadir'")
+        time.sleep(5)
+
+        vm_ips = get_vm_ips(hostname)
+        vmip = vm_ips[0]
+        run_cmd(f"sshpass -p {ssh_pass} ssh {ssh_user}@{vmip} 'mkdir -p /mnt/sambadr'")
+        run_cmd(f"sshpass -p {ssh_pass} ssh {ssh_user}@{vmip} 'mount -t virtiofs commonfs /mnt/sambadir'")
 
         print(f"✅ Assigning hostname and IP for {hostname}")
-        run_cmd(f"sshpass -p samba ssh -o StrictHostKeyChecking=No {ssh_user}@192.168.100.160 'hostnamectl hostname {hostname}'")
-        run_cmd(f"sshpass -p samba scp -o StrictHostKeyChecking=No ipconfigure.sh {ssh_user}@192.168.100.160:/root/.")
-        run_cmd(f"sshpass -p samba ssh -o StrictHostKeyChecking=No {ssh_user}@192.168.100.160 'bash ipconfigure.sh'")
-        run_cmd(f"sshpass -p samba ssh {ssh_user}@192.168.100.160 'rm ipconfigure.sh'")
+        run_cmd(f"sshpass -p {ssh_pass} ssh -o StrictHostKeyChecking=No {ssh_user}@{vmip} 'hostnamectl hostname {hostname}'")
+        run_cmd(f"sshpass -p {ssh_pass} scp -o StrictHostKeyChecking=No ipconfigure.sh {ssh_user}@{vmip}:/root/.")
+        run_cmd(f"sshpass -p {ssh_pass} ssh -o StrictHostKeyChecking=No {ssh_user}@{vmip} 'bash ipconfigure.sh'")
+        run_cmd(f"sshpass -p {ssh_pass} ssh {ssh_user}@{vmip} 'rm ipconfigure.sh'")
         run_cmd(f"rm ipconfigure.sh")
         time.sleep(5)
         stop_vm(hostname)
@@ -416,8 +413,6 @@ def cluster_init():
     base_vm = read_config("ORIGINAL_VM")
     base_ip = read_config("BASE_IP")
     gateway = read_config("GATEWAY")
-
-    print(f"######################        BASE_IP = {base_ip}")
 
     if not base_vm:
         raise ValueError("BASE_VM (ORIGINAL_VM) not defined in GENERAL section")
