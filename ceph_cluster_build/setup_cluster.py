@@ -5,6 +5,7 @@ import time
 import os
 import glob
 import string
+from configurecluster import *
 
 CONFIG_FILE = "cluster.config"
 VIRT_CLONE = "/usr/bin/virt-clone"
