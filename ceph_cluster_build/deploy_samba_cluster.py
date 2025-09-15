@@ -3,8 +3,9 @@ import os
 import subprocess
 import time
 import pwd
+import shutil
 
-CONFIG_FILE = "cluster.txt"
+CONFIG_FILE = "cluster.config"
 
 def load_config(file_path=CONFIG_FILE):
     """Load key=value pairs from config file into dict"""
@@ -82,6 +83,21 @@ def write_ctdb_conf_file(prefix_path):
     os.makedirs(f"{prefix_path}/etc/ctdb", exist_ok=True)
     with open(f"{prefix_path}/etc/ctdb/ctdb.conf", "w") as f:
         f.write(ctdb_conf)
+
+def ceph_fuse_install():
+    if shutil.which("ceph-fuse"):
+        print("✅ ceph-fuse is already installed")
+        return
+
+    print("ℹ️ ceph-fuse not found. Installing...")
+
+    run_cmd("dnf install -y centos-release-ceph-quincy", check=True)
+    run_cmd("dnf install -y ceph-fuse ceph-common", check=True)
+
+    if shutil.which("ceph-fuse"):
+        print("✅ ceph-fuse installation successful")
+    else:
+        print("❌ ceph-fuse installation failed")
 
 def update_local_mount():
     run_cmd("mkdir -p /mnt/commonfs")
