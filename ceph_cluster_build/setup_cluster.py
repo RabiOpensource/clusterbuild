@@ -413,6 +413,8 @@ def cluster_init():
     base_vm = read_config("ORIGINAL_VM")
     base_ip = read_config("BASE_IP")
     gateway = read_config("GATEWAY")
+    start_ip = read_config("START_IP")
+    host_base_name = ("HOST_BASE_NAME")
 
     if not base_vm:
         raise ValueError("BASE_VM (ORIGINAL_VM) not defined in GENERAL section")
@@ -435,6 +437,8 @@ def cluster_init():
         update_config("BASE_IP", base_ip)
         update_config("GATEWAY", gateway)
         stop_vm(base_vm)
+    ceph_head_node = host_base_name + start_ip
+    update_config("CEPH_HEAD_NODE", ceph_head_node)
 
 
 # ---------------- MAIN ENTRY ----------------
