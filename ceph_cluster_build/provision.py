@@ -5,7 +5,7 @@ import time
 
 def load_cluster_config():
     cfg = {}
-    with open("cluster.txt") as f:
+    with open("cluster.config") as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):
