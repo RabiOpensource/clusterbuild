@@ -102,6 +102,35 @@ def ceph_fuse_install():
 def update_local_mount():
     run_cmd("mkdir -p /mnt/commonfs")
 
+def get_ceph_file_system_name()
+    ceph_head_node = read_config("CEPH_HEAD_NODE")
+    if ceph_head_node is None:
+        print("❌ System is not configured properly. Reconfigure it")
+
+    output = run_remote(ceph_head_node, "ceph fs ls")
+    if not output:
+        print("❌ Failed to get Ceph file systems from head node")
+        return None
+
+    fs_names = []
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("name:"):
+            # Format: name: cephfs, metadata pool: ...
+            try:
+                fs_name = line.split("name:")[1].split(",")[0].strip()
+                fs_names.append(fs_name)
+            except IndexError:
+                continue
+
+    if not fs_names:
+        print("❌ No filesystem name found in ceph fs ls output")
+        return None
+
+    # Return first one if only single FS is expected
+    return fs_names[0] if len(fs_names) == 1 else fs_names
+
+
 def write_smb_conf_file(prefix_path):
     smb_conf = f"""
 [global]
