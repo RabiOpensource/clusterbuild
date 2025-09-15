@@ -91,7 +91,7 @@ def ceph_fuse_install():
 
     print("ℹ️ ceph-fuse not found. Installing...")
 
-    run_cmd("dnf install -y centos-release-ceph-quincy", check=True)
+    run_cmd("dnf install -y centos-release-ceph-squid", check=True)
     run_cmd("dnf install -y ceph-fuse ceph-common", check=True)
 
     if shutil.which("ceph-fuse"):
