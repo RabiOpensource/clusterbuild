@@ -373,6 +373,7 @@ def provision_samba_node(config):
             try:
                 copy_file(samba_vm_name, "cluster.config", "cluster.config", ssh_user)
                 copy_file(samba_vm_name, "deploy_samba_cluster.py", "deploy_samba_cluster.py", ssh_user)
+                copy_file(samba_vm_name, "configurecluster.py", "configurecluster.py", ssh_user)
                 copy_file(samba_vm_name, "installsamba.sh", "installsamba.sh", ssh_user)
                 run_remote(samba_vm_name, "python3 deploy_samba_cluster.py", ssh_user)
                 print(f"✅ Samba node {samba_vm_name} provisioned successfully")

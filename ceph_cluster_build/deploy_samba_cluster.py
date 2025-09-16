@@ -4,6 +4,7 @@ import subprocess
 import time
 import pwd
 import shutil
+from configurecluster import *
 
 CONFIG_FILE = "cluster.config"
 
@@ -160,6 +161,42 @@ def generating_ceph_key_ring():
     print(f"✅ Ceph keyring generated at {keyring_path}")
     return keyring_path
 
+def mount_cephfs(mount_point="/mnt/cephfs"):
+    samba_user = read_config("SAMBA_USER")
+    ceph_head_node = read_config("CEPH_HEAD_NODE")
+    if not samba_user or not ceph_head_node:
+        print("❌ SAMBA_USER or CEPH_HEAD_NODE not found in config")
+        return False
+
+    fs_name = get_ceph_file_system_name()
+    if not fs_name:
+        print("❌ Could not determine Ceph filesystem name")
+        return False
+
+    # Ensure keyring exists
+    keyring_path = generating_ceph_key_ring()
+    if not keyring_path:
+        print("❌ Could not generate keyring")
+        return False
+
+    # Create mount directory
+    os.makedirs(mount_point, exist_ok=True)
+
+    # Build Ceph mount command
+    cmd = (
+        f"sudo mount -t ceph {ceph_head_node}:6789:/ "
+        f"{mount_point} -o name={samba_user},keyring={keyring_path},fs={fs_name}"
+    )
+
+    output = run_cmd(cmd, check=False)
+    if "mount" in output.lower() or os.path.ismount(mount_point):
+        print(f"✅ CephFS mounted at {mount_point}")
+        return True
+    else:
+        print(f"❌ Failed to mount CephFS at {mount_point}")
+        return False
+
+
 def get_user_keyring_secrate_key():
     # Get keyring path from generating_ceph_key_ring()
     keyring_path = generating_ceph_key_ring()
@@ -196,6 +233,7 @@ def write_smb_conf_file(prefix_path):
     os.makedirs(f"{prefix_path}/etc/", exist_ok=True)
     with open(f"{prefix_path}/etc/smb.conf", "w") as f:
         f.write(smb_conf)
+def samba_node_init():
 
 def main():
     cfg = load_config(CONFIG_FILE)
