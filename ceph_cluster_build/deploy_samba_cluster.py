@@ -130,6 +130,36 @@ def get_ceph_file_system_name()
     # Return first one if only single FS is expected
     return fs_names[0] if len(fs_names) == 1 else fs_names
 
+def generating_ceph_key_ring():
+    samba_user = read_config("SAMBA_USER")
+    ceph_head_node = read_config("CEPH_HEAD_NODE")
+    ssh_user = read_config("SSH_USER") or "root"
+
+    if not samba_user or not ceph_head_node:
+        print("❌ SAMBA_USER or CEPH_HEAD_NODE not found in config")
+        return None
+
+    fs_name = get_ceph_file_system_name()
+    if not fs_name:
+        print("❌ Could not determine Ceph filesystem name")
+        return None
+
+    keyring_path = f"/etc/ceph/ceph.client.{samba_user}.keyring"
+    os.makedirs("/etc/ceph", exist_ok=True)
+
+    # Build command
+    cmd = (
+        f"ssh {ssh_user}@{ceph_head_node} "
+        f"\"sudo ceph fs authorize {fs_name} client.{samba_user} / rw\" "
+        f"| sudo tee {keyring_path}"
+    )
+
+    # Run with run_cmd
+    output = run_cmd(cmd, check=True)
+
+    print(f"✅ Ceph keyring generated at {keyring_path}")
+    return keyring_path
+
 
 def write_smb_conf_file(prefix_path):
     smb_conf = f"""
