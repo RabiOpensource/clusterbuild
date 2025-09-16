@@ -283,7 +283,7 @@ def main():
         for ip in range(START_IP + NO_OF_VMS - NO_SAMBA_VMS, START_IP + NO_OF_VMS)
     ]
 
-    print(f"Head Node: {HEAD_NODE}")
+    print(f"Ceph head Node: {HEAD_NODE}")
     print(f"Samba cluster Nodes: {SAMBA_NODES}")
 
     run_cmd(f"mount -t virtiofs commonfs /mnt/commonfs/")
