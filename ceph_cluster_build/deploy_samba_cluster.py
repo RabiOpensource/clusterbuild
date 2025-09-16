@@ -160,6 +160,26 @@ def generating_ceph_key_ring():
     print(f"✅ Ceph keyring generated at {keyring_path}")
     return keyring_path
 
+def get_user_keyring_secrate_key():
+    # Get keyring path from generating_ceph_key_ring()
+    keyring_path = generating_ceph_key_ring()
+    if not keyring_path or not os.path.exists(keyring_path):
+        print(f"❌ Keyring file not found: {keyring_path}")
+        return None
+
+    with open(keyring_path, "r") as f:
+        content = f.read()
+
+    # Extract "key = ..." line
+    match = re.search(r'key\s*=\s*([A-Za-z0-9+/=]+)', content)
+    if match:
+        secret = match.group(1).strip()
+        print(f"✅ Found secret key in {keyring_path}")
+        return secret
+    else:
+        print("❌ No secret key found in keyring file")
+        return None
+
 
 def write_smb_conf_file(prefix_path):
     smb_conf = f"""
