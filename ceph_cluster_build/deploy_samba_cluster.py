@@ -58,12 +58,14 @@ def copy_file(host, src, dest, user="root"):
         print(f"❌ File copy to {host} failed: {e}")
 
 #files are related to samba so we are giving PREFIX_PATH
-def write_ip_to_node(prefix_path, all_nodes):
+def write_ip_to_node( all_nodes):
+    prefix_path = read_config("PATH_TO_CONFIGURE")
     with open(f"{prefix_path}/etc/ctdb/nodes", "w") as f:
         f.write("\n".join(all_nodes) + "\n")
 
 #files are related to samba so we are giving PREFIX_PATH
-def write_public_address(device, base_ip, no_of_vms, start_ip, prefix_path):
+def write_public_address(device, base_ip, no_of_vms, start_ip):
+    prefix_path = read_config("PATH_TO_CONFIGURE")
     os.makedirs(f"{prefix_path}/etc/ctdb", exist_ok=True)
     with open(f"{prefix_path}/etc/ctdb/public_addresses", "w") as f:
         for i in range(no_of_vms):
@@ -173,19 +175,19 @@ def mount_cephfs(mount_point="/mnt/cephfs"):
         print("❌ Could not determine Ceph filesystem name")
         return False
 
-    # Ensure keyring exists
-    keyring_path = generating_ceph_key_ring()
-    if not keyring_path:
-        print("❌ Could not generate keyring")
+    # Ensure secret key exists
+    secret_key = get_user_keyring_secrate_key()
+    if not secret_key:
+        print("❌ Could not retrieve secret key")
         return False
 
     # Create mount directory
     os.makedirs(mount_point, exist_ok=True)
 
-    # Build Ceph mount command
+    # Build Ceph mount command using secret key directly
     cmd = (
         f"sudo mount -t ceph {ceph_head_node}:6789:/ "
-        f"{mount_point} -o name={samba_user},keyring={keyring_path},fs={fs_name}"
+        f"{mount_point} -o name={samba_user},secret={secret_key},fs={fs_name}"
     )
 
     output = run_cmd(cmd, check=False)
@@ -196,9 +198,7 @@ def mount_cephfs(mount_point="/mnt/cephfs"):
         print(f"❌ Failed to mount CephFS at {mount_point}")
         return False
 
-
 def get_user_keyring_secrate_key():
-    # Get keyring path from generating_ceph_key_ring()
     keyring_path = generating_ceph_key_ring()
     if not keyring_path or not os.path.exists(keyring_path):
         print(f"❌ Keyring file not found: {keyring_path}")
@@ -218,22 +218,49 @@ def get_user_keyring_secrate_key():
         return None
 
 
-def write_smb_conf_file(prefix_path):
-    smb_conf = f"""
+def write_smb_conf_file():
+    samba_cluster = read_config("SAMBA_CLUSTERING")
+    ceph_filesystem = get_ceph_file_system_name()
+    prefix_path=read_config("PATH_TO_CONFIGURE")
+    valid_user = "user1"
+    global_section = f"""
 [global]
         include = registry
         clustering = yes
         log level = 10
 
+"""
+    if samba_cluster:
+        global_section += "        clustering = yes\n"
+    smb_conf = f"""
 [share1]
+        vfs objects = ceph_new
+        path = /
+        valid users = root {valid_user}
+        ceph_new: filesystem = {ceph_filesystem}
+        ceph_new: user_id = {valid_user}
+        ceph_new: config_file = /etc/ceph/ceph.conf
+        browseable = yes
         path = /mnt-cephfs/volumes/_nogroup/smbshares/share1
         read only = no
-        inherit permissions = yes
-"""
+ """
     os.makedirs(f"{prefix_path}/etc/", exist_ok=True)
     with open(f"{prefix_path}/etc/smb.conf", "w") as f:
         f.write(smb_conf)
+
 def samba_node_init():
+    samba_cluster = read_config("SAMBA_CLUSTERING")
+    ceph_fuse_install()
+    generating_ceph_key_ring()
+    mount_cephfs(mount_point)
+    write_smb_conf_file()
+    if samba_cluster:
+        write_ctdb_conf_file()
+        write_ip_to_node(PREFIX_PATH, SAMBA_NODES)
+        write_public_address(NETWORK_INTERFACE, BASE_IP, NO_SAMBA_VMS,
+                             START_IP + NO_OF_VMS - NO_SAMBA_VMS,
+                             PREFIX_PATH)
+
 
 def main():
     cfg = load_config(CONFIG_FILE)
@@ -267,11 +294,6 @@ def main():
 
     run_cmd(f"bash installsamba.sh")
 
-    write_ctdb_conf_file(PREFIX_PATH)
-    write_ip_to_node(PREFIX_PATH, SAMBA_NODES)
-    write_public_address(NETWORK_INTERFACE, BASE_IP, NO_SAMBA_VMS,
-                         START_IP + NO_OF_VMS - NO_SAMBA_VMS,
-                         PREFIX_PATH)
     write_smb_conf_file(PREFIX_PATH)
 
 
