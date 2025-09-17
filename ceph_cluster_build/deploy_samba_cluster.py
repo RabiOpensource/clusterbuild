@@ -325,7 +325,8 @@ def main():
     print(f"Ceph head Node: {HEAD_NODE}")
     print(f"Samba cluster Nodes: {SAMBA_NODES}")
 
-    run_cmd(f"mount -t virtiofs commonfs /mnt/commonfs/")
+    if not is_mounted("commonfs"):
+        run_cmd(f"mount -t virtiofs commonfs /mnt/commonfs/")
     time.sleep(5)
     if not os.path.exists(SAMBA_PKG):
         print(f"❌ Samba path {SAMBA_PKG} not found")
