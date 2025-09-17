@@ -302,6 +302,7 @@ def samba_node_init():
 
 
 def main():
+    samba_cluster = read_config("SAMBA_CLUSTERING")
     cfg = load_config(CONFIG_FILE)
 
     START_IP = int(cfg["START_IP"])
@@ -332,7 +333,7 @@ def main():
         print(f"❌ Samba path {SAMBA_PKG} not found")
         return
 
-    run_cmd(f"bash installsamba.sh")
+#    run_cmd(f"bash installsamba.sh")
 
 #    print(f"\n⚙️ Setting up Samba + CTDB on {host}")
 
@@ -342,11 +343,12 @@ def main():
 
     add_user("user1", "samba", PREFIX_PATH)
 
-    for script in ["00.ctdb", "01.reclock", "05.system", "10.interface", "95.database"]:
-        run_cmd(f"{PREFIX_PATH}/bin/ctdb event script enable legacy {script}")
+    if samba_cluster:
+        for script in ["00.ctdb", "01.reclock", "05.system", "10.interface", "95.database"]:
+            run_cmd(f"{PREFIX_PATH}/bin/ctdb event script enable legacy {script}")
 
-    time.sleep(10)
-    run_cmd(f"{PREFIX_PATH}/sbin/ctdbd")
+        time.sleep(10)
+        run_cmd(f"{PREFIX_PATH}/sbin/ctdbd")
     time.sleep(10)
     run_cmd(f"{PREFIX_PATH}/sbin/smbd -D")
 
