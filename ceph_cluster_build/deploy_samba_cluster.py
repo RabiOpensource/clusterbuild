@@ -300,6 +300,14 @@ def samba_node_init():
                              START_IP + NO_OF_VMS - NO_SAMBA_VMS,
                              PREFIX_PATH)
 
+def start_servers():
+    samba_cluster = read_config("SAMBA_CLUSTERING")
+    prefix_path=read_config("PATH_TO_CONFIGURE")
+    if samba_cluster:
+        run_cmd(f"{prefix_path}/sbin/ctdbd")
+        time.sleep(10)
+    run_cmd(f"{prefix_path}/sbin/smbd -D")
+    time.sleep(10)
 
 def main():
     samba_cluster = read_config("SAMBA_CLUSTERING")
@@ -347,11 +355,8 @@ def main():
         for script in ["00.ctdb", "01.reclock", "05.system", "10.interface", "95.database"]:
             run_cmd(f"{PREFIX_PATH}/bin/ctdb event script enable legacy {script}")
 
-        time.sleep(10)
-        run_cmd(f"{PREFIX_PATH}/sbin/ctdbd")
-    time.sleep(10)
-    run_cmd(f"{PREFIX_PATH}/sbin/smbd -D")
 
+    start_servers()
     
 
 if __name__ == "__main__":
