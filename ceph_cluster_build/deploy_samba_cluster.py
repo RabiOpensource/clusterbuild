@@ -34,12 +34,27 @@ def add_user(username, password="samba", prefix_path=""):
 
         print(f"User {username} created successfully.")
 
-def run_cmd(cmd):
+def run_cmd(cmd, check=False, capture=True):
+    shell = isinstance(cmd, str)
+
     print(f"▶️ Running local: {cmd}")
+
     try:
         subprocess.run(cmd, shell=True, check=True)
+        result = subprocess.run(
+            cmd,
+            shell=shell,
+            check=check,
+            stdout=subprocess.PIPE if capture else None,
+            stderr=subprocess.STDOUT if capture else None,
+            text=True
+        )
+        return result.stdout.strip() if capture else ""
     except subprocess.CalledProcessError as e:
         print(f"❌ Local command failed: {e}")
+        if e.stdout:
+            print(f"--- output ---\n{e.stdout}")
+        sys.exit(1 if check else 0)
 
 def run_remote(host, cmd, user="root"):
     ssh_cmd = f"ssh {user}@{host} '{cmd}'"
@@ -105,7 +120,7 @@ def ceph_fuse_install():
 def update_local_mount():
     run_cmd("mkdir -p /mnt/commonfs")
 
-def get_ceph_file_system_name()
+def get_ceph_file_system_name():
     ceph_head_node = read_config("CEPH_HEAD_NODE")
     if ceph_head_node is None:
         print("❌ System is not configured properly. Reconfigure it")
@@ -134,7 +149,7 @@ def get_ceph_file_system_name()
     return fs_names[0] if len(fs_names) == 1 else fs_names
 
 def generating_ceph_key_ring():
-    samba_user = read_config("SAMBA_USER")
+    samba_user = read_config("SAMBA_USER") or "user1"
     ceph_head_node = read_config("CEPH_HEAD_NODE")
     ssh_user = read_config("SSH_USER") or "root"
 
@@ -150,18 +165,34 @@ def generating_ceph_key_ring():
     keyring_path = f"/etc/ceph/ceph.client.{samba_user}.keyring"
     os.makedirs("/etc/ceph", exist_ok=True)
 
-    # Build command
-    cmd = (
-        f"ssh {ssh_user}@{ceph_head_node} "
-        f"\"sudo ceph fs authorize {fs_name} client.{samba_user} / rw\" "
-        f"| sudo tee {keyring_path}"
-    )
 
-    # Run with run_cmd
-    output = run_cmd(cmd, check=True)
+    check_cmd = f"ssh {ssh_user}@{ceph_head_node} 'ceph auth get client.{samba_user}'"
+    auth_output = run_cmd(check_cmd, check=False)
+    already_authorized = False
+    if auth_output:
+        match = re.search(r'caps mds = .*fsname=([A-Za-z0-9._-]+)', auth_output)
+        if match and match.group(1) == fs_name:
+            already_authorized = True
 
-    print(f"✅ Ceph keyring generated at {keyring_path}")
-    return keyring_path
+    if already_authorized:
+        print(f"ℹ️ User client.{samba_user} is already authorized for FS '{fs_name}', fetching keyring...")
+        get_key_cmd = f"ssh {ssh_user}@{ceph_head_node} 'ceph auth get client.{samba_user}' | tee {keyring_path}"
+        run_cmd(get_key_cmd, check=True)
+    else:
+        print(f"🔑 Authorizing client.{samba_user} for FS '{fs_name}'...")
+        auth_cmd = (
+            f"ssh {ssh_user}@{ceph_head_node} "
+            f"\"ceph fs authorize {fs_name} client.{samba_user} / rw\" "
+            f"| tee {keyring_path}"
+        )
+        run_cmd(auth_cmd, check=True)
+
+    if os.path.exists(keyring_path):
+        print(f"✅ Ceph keyring ready at {keyring_path}")
+        return keyring_path
+    else:
+        print("❌ Failed to generate keyring")
+        return None
 
 def mount_cephfs(mount_point="/mnt/cephfs"):
     samba_user = read_config("SAMBA_USER")
@@ -181,22 +212,23 @@ def mount_cephfs(mount_point="/mnt/cephfs"):
         print("❌ Could not retrieve secret key")
         return False
 
-    # Create mount directory
-    os.makedirs(mount_point, exist_ok=True)
+    if not is_mounted(mount_point):
+        # Create mount directory
+        os.makedirs(mount_point, exist_ok=True)
 
-    # Build Ceph mount command using secret key directly
-    cmd = (
-        f"sudo mount -t ceph {ceph_head_node}:6789:/ "
-        f"{mount_point} -o name={samba_user},secret={secret_key},fs={fs_name}"
-    )
+        # Build Ceph mount command using secret key directly
+        cmd = (
+            f"sudo mount -t ceph {ceph_head_node}:6789:/ "
+            f"{mount_point} -o name={samba_user},secret={secret_key},fs={fs_name}"
+        )
 
-    output = run_cmd(cmd, check=False)
-    if "mount" in output.lower() or os.path.ismount(mount_point):
-        print(f"✅ CephFS mounted at {mount_point}")
-        return True
-    else:
-        print(f"❌ Failed to mount CephFS at {mount_point}")
-        return False
+        output = run_cmd(cmd, check=False)
+        if "mount" in output.lower() or os.path.ismount(mount_point):
+            print(f"✅ CephFS mounted at {mount_point}")
+            return True
+        else:
+            print(f"❌ Failed to mount CephFS at {mount_point}")
+            return False
 
 def get_user_keyring_secrate_key():
     keyring_path = generating_ceph_key_ring()
@@ -216,7 +248,14 @@ def get_user_keyring_secrate_key():
     else:
         print("❌ No secret key found in keyring file")
         return None
-
+def is_mounted(mount_point: str) -> bool:
+    try:
+        with open("/proc/mounts", "r") as f:
+            mounts = f.read().splitlines()
+        return any(mount_point in line.split() for line in mounts)
+    except Exception as e:
+        print(f"Error checking mounts: {e}")
+        return False
 
 def write_smb_conf_file():
     samba_cluster = read_config("SAMBA_CLUSTERING")
@@ -294,11 +333,7 @@ def main():
 
     run_cmd(f"bash installsamba.sh")
 
-    write_smb_conf_file(PREFIX_PATH)
-
-
 #    print(f"\n⚙️ Setting up Samba + CTDB on {host}")
-
 
     for port in ["22/tcp", "4379/tcp", "4379/udp", "445/tcp"]:
         run_cmd(f"firewall-cmd --zone=public --permanent --add-port={port}")
