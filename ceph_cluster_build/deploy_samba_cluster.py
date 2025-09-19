@@ -291,7 +291,7 @@ def samba_node_init():
     samba_cluster = read_config("SAMBA_CLUSTERING")
     ceph_fuse_install()
     generating_ceph_key_ring()
-    mount_cephfs(mount_point)
+    mount_cephfs()
     write_smb_conf_file()
     if samba_cluster:
         write_ctdb_conf_file()
@@ -311,25 +311,19 @@ def start_servers():
 
 def main():
     samba_cluster = read_config("SAMBA_CLUSTERING")
-    cfg = load_config(CONFIG_FILE)
+    samba_pkg = read_config("SAMBA_PKG")
+    ssh_user = read_config("SSH_USER")
+    prefix_path=read_config("PATH_TO_CONFIGURE")
+    start_ip = int(read_config("START_IP"))
+    samba_path = read_config("SAMBA_PATH")
+    ssh_passwd = read_config("SSH_PASS")
+    net_interace = read_config("NETWORK_INTERFACE")
+    base_ip = read_config("BASE_IP")
+    no_of_vms = int(read_config("NO_OF_VMS"))
 
-    START_IP = int(cfg["START_IP"])
-    NO_OF_VMS = int(cfg["NO_OF_VMS"])
-    BASE_IP = cfg["BASE_IP"]
-    SAMBA_PKG = cfg["SAMBA_PKG"]
-    SSH_USER = cfg["SSH_USER"]
-    PREFIX_PATH = cfg["PATH_TO_CONFIGURE"]
-    SAMBA_PATH = cfg["SAMBA_PATH"]
-    SSH_PASS = cfg.get("SSH_PASS", "")
-    NETWORK_INTERFACE = cfg.get("NETWORK_INTERFACE", "enp8s0")
-    NO_SAMBA_VMS = int(cfg["NO_OF_SAMBA_VMS"])
-
-    HEAD_NODE = f'{BASE_IP}{START_IP}'
-    ALL_NODES = [f"{BASE_IP}{START_IP}" for i in range(NO_OF_VMS)]
-    SAMBA_NODES = [
-        f"{BASE_IP}{ip}"
-        for ip in range(START_IP + NO_OF_VMS - NO_SAMBA_VMS, START_IP + NO_OF_VMS)
-    ]
+    head_node = f'{base_ip}{start_ip}'
+    all_node = [f"{base_ip}{start_ip}" for i in range(no_of_vms)]
+    samba_node_init()
 
     print(f"Ceph head Node: {HEAD_NODE}")
     print(f"Samba cluster Nodes: {SAMBA_NODES}")
