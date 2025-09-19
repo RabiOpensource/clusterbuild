@@ -4,6 +4,7 @@ import subprocess
 import time
 import pwd
 import shutil
+import re
 from configurecluster import *
 
 CONFIG_FILE = "cluster.config"
@@ -29,7 +30,7 @@ def add_user(username, password="samba", prefix_path=""):
     except KeyError:
         # User does not exist → create it
         print(f"User {username} does not exist. Creating...")
-        run_cmd(f"useradd -M -s /bin/bash {username} || true")
+        run_cmd(f"useradd -m -s /bin/bash {username} || true")
         run_cmd(f"(echo '{password}'; echo '{password}') | {prefix_path}/bin/smbpasswd -s -a {username}")
 
         print(f"User {username} created successfully.")
@@ -55,14 +56,17 @@ def run_cmd(cmd, check=False, capture=True):
         if e.stdout:
             print(f"--- output ---\n{e.stdout}")
         sys.exit(1 if check else 0)
-
-def run_remote(host, cmd, user="root"):
-    ssh_cmd = f"ssh {user}@{host} '{cmd}'"
-    print(f"▶️ Running remote on {host}: {cmd}")
-    try:
-        subprocess.run(ssh_cmd, shell=True, check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Remote command on {host} failed: {e}")
+def run_remote(host, command, user="root"):
+    import subprocess
+    print(f"▶️ Running remote on {host}: {command}")
+    result = subprocess.run(
+        ["ssh", host, command],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print(f"❌ Command failed: {result.stderr}")
+        return None
+    return result.stdout.strip()
 
 def copy_file(host, src, dest, user="root"):
     scp_cmd = f"scp {src} {user}@{host}:{dest}"
@@ -195,7 +199,7 @@ def generating_ceph_key_ring():
         return None
 
 def mount_cephfs(mount_point="/mnt/cephfs"):
-    samba_user = read_config("SAMBA_USER")
+    samba_user = read_config("SAMBA_USER") or "user1"
     ceph_head_node = read_config("CEPH_HEAD_NODE")
     if not samba_user or not ceph_head_node:
         print("❌ SAMBA_USER or CEPH_HEAD_NODE not found in config")
@@ -213,6 +217,7 @@ def mount_cephfs(mount_point="/mnt/cephfs"):
         return False
 
     if not is_mounted(mount_point):
+        print("we count not able find mount path")
         # Create mount directory
         os.makedirs(mount_point, exist_ok=True)
 
@@ -222,6 +227,7 @@ def mount_cephfs(mount_point="/mnt/cephfs"):
             f"{mount_point} -o name={samba_user},secret={secret_key},fs={fs_name}"
         )
 
+        print("executing command " + cmd)
         output = run_cmd(cmd, check=False)
         if "mount" in output.lower() or os.path.ismount(mount_point):
             print(f"✅ CephFS mounted at {mount_point}")
@@ -325,25 +331,26 @@ def main():
     all_node = [f"{base_ip}{start_ip}" for i in range(no_of_vms)]
     samba_node_init()
 
-    print(f"Ceph head Node: {HEAD_NODE}")
-    print(f"Samba cluster Nodes: {SAMBA_NODES}")
+    print(f"Ceph head Node: {head_node}")
+    #print(f"Samba cluster Nodes: {samba_nodes}")
 
     if not is_mounted("commonfs"):
         run_cmd(f"mount -t virtiofs commonfs /mnt/commonfs/")
     time.sleep(5)
-    if not os.path.exists(SAMBA_PKG):
-        print(f"❌ Samba path {SAMBA_PKG} not found")
+    if not os.path.exists(samba_pkg):
+        print(f"❌ Samba path {samba_pkg} not found")
         return
 
-#    run_cmd(f"bash installsamba.sh")
+    run_cmd(f"bash installsamba.sh")
 
-#    print(f"\n⚙️ Setting up Samba + CTDB on {host}")
+    if samba_cluster:
+        print(f"\n⚙️ Setting up Samba + CTDB on {host}")
 
     for port in ["22/tcp", "4379/tcp", "4379/udp", "445/tcp"]:
         run_cmd(f"firewall-cmd --zone=public --permanent --add-port={port}")
     run_cmd("systemctl restart firewalld")
 
-    add_user("user1", "samba", PREFIX_PATH)
+    add_user("user1", "samba", prefix_path)
 
     if samba_cluster:
         for script in ["00.ctdb", "01.reclock", "05.system", "10.interface", "95.database"]:
