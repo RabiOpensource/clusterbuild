@@ -31,7 +31,7 @@ def add_user(username, password="samba", prefix_path=""):
         # User does not exist → create it
         print(f"User {username} does not exist. Creating...")
         run_cmd(f"useradd -m -s /bin/bash {username} || true")
-        run_cmd(f"(echo '{password}'; echo '{password}') | {prefix_path}/bin/smbpasswd -s -a {username}")
+        run_cmd(f"(printf '%s\n' '{password}'; printf '%s\n' '{password}') | {prefix_path}/bin/smbpasswd -s -a {username}")
 
         print(f"User {username} created successfully.")
 
@@ -270,14 +270,12 @@ def write_smb_conf_file():
     valid_user = "user1"
     global_section = f"""
 [global]
-        include = registry
-        clustering = yes
         log level = 10
 
 """
     if samba_cluster:
         global_section += "        clustering = yes\n"
-    smb_conf = f"""
+    smb_conf = global_section + f"""
 [share1]
         vfs objects = ceph_new
         path = /
@@ -286,7 +284,7 @@ def write_smb_conf_file():
         ceph_new: user_id = {valid_user}
         ceph_new: config_file = /etc/ceph/ceph.conf
         browseable = yes
-        path = /mnt-cephfs/volumes/_nogroup/smbshares/share1
+        path = /mnt/cephfs/volumes/smbshares/share1
         read only = no
  """
     os.makedirs(f"{prefix_path}/etc/", exist_ok=True)
@@ -341,7 +339,7 @@ def main():
         print(f"❌ Samba path {samba_pkg} not found")
         return
 
-    run_cmd(f"bash installsamba.sh")
+    #run_cmd(f"bash installsamba.sh")
 
     if samba_cluster:
         print(f"\n⚙️ Setting up Samba + CTDB on {host}")
