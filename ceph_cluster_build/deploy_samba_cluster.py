@@ -293,16 +293,26 @@ def write_smb_conf_file():
 
 def samba_node_init():
     samba_cluster = read_config("SAMBA_CLUSTERING")
+    prefix_path=read_config("PATH_TO_CONFIGURE")
+    start_ip = int(read_config("START_IP"))
+    base_ip = read_config("BASE_IP")
+    no_of_vms = int(read_config("NO_OF_VMS"))
+    net_interace = read_config("NETWORK_INTERFACE")
+    no_samba_vms = int(read_config("NO_OF_SAMBA_VMS")
+    samba_nodes = [
+        f"{base_ip}{ip}"
+        for ip in range(start_ip + no_of_vms - no_samba_vms, start_ip + no_of_vms)
+    ]
     ceph_fuse_install()
     generating_ceph_key_ring()
     mount_cephfs()
     write_smb_conf_file()
     if samba_cluster:
         write_ctdb_conf_file()
-        write_ip_to_node(PREFIX_PATH, SAMBA_NODES)
-        write_public_address(NETWORK_INTERFACE, BASE_IP, NO_SAMBA_VMS,
-                             START_IP + NO_OF_VMS - NO_SAMBA_VMS,
-                             PREFIX_PATH)
+        write_ip_to_node(prefix_path, samba_nodes)
+        write_public_address(net_interace, base_ip, no_samba_vms,
+                             start_ip + no_of_vms - no_samba_vms,
+                             prefix_path)
 
 def start_servers():
     samba_cluster = read_config("SAMBA_CLUSTERING")
@@ -338,6 +348,7 @@ def main():
     if not os.path.exists(samba_pkg):
         print(f"❌ Samba path {samba_pkg} not found")
         return
+#    build_installsamba_script()
 
     #run_cmd(f"bash installsamba.sh")
 
