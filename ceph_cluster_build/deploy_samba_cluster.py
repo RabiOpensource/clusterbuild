@@ -291,6 +291,19 @@ def write_smb_conf_file():
     with open(f"{prefix_path}/etc/smb.conf", "w") as f:
         f.write(smb_conf)
 
+def build_installsamba_script():
+    configure_cmd = "./configure --enable-debug --without-ldb-lmdb --without-json  --without-ad-dc --enable-selftest"
+    clustering = read_config("SAMBA_CLUSTERING")
+
+    if clustering and clustering.strip().lower() in ["1", "yes", "true", "enabled"]:
+        configure_cmd += " --with-cluster-support"
+    configure_cmd +="; make clean; make all -j$(nproc); make install"
+
+    # Write the configure string to script file
+    with open("installsamba.sh", "w") as f:
+        f.write("#!/bin/bash\n")
+        f.write(configure_cmd + "\n")
+
 def samba_node_init():
     samba_cluster = read_config("SAMBA_CLUSTERING")
     prefix_path=read_config("PATH_TO_CONFIGURE")
@@ -348,7 +361,7 @@ def main():
     if not os.path.exists(samba_pkg):
         print(f"❌ Samba path {samba_pkg} not found")
         return
-#    build_installsamba_script()
+    build_installsamba_script()
 
     #run_cmd(f"bash installsamba.sh")
 
