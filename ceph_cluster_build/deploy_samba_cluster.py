@@ -35,27 +35,13 @@ def add_user(username, password="samba", prefix_path=""):
         run_cmd(f"(printf '%s\n' '{password}'; printf '%s\n' '{password}') | {prefix_path}/bin/smbpasswd -s -a {username}")
 
         print(f"User {username} created successfully.")
-def run_cmd(cmd, check=False, capture=True):
-    shell = isinstance(cmd, str)
-    print(f"▶️ Running local: {cmd}")
 
+def run_cmd(cmd):
+    print(f"▶️ Running local: {cmd}")
     try:
-        result = subprocess.run(
-            cmd,
-            shell=shell,
-            check=check,
-            stdout=subprocess.PIPE if capture else None,
-            stderr=subprocess.STDOUT if capture else None,
-            text=True
-        )
-        return result.stdout.strip() if capture and result.stdout else ""
+        subprocess.run(cmd, shell=True, check=True)
     except subprocess.CalledProcessError as e:
         print(f"❌ Local command failed: {e}")
-        if e.stdout:
-            print(f"--- output ---\n{e.stdout}")
-        if check:
-            sys.exit(1)
-        return None
 
 def run_remote(host, command, user="root", wait=True):
     import subprocess
@@ -364,7 +350,6 @@ def samba_node_init():
         write_public_address(net_interace, base_ip, no_samba_vms,
                              start_ip + no_of_vms - no_samba_vms,
                              prefix_path)
-
 def start_servers():
     samba_cluster = read_config("SAMBA_CLUSTERING")
     prefix_path=read_config("PATH_TO_CONFIGURE")
@@ -395,13 +380,13 @@ def main():
 
     if not is_mounted("commonfs"):
         run_cmd(f"mount -t virtiofs commonfs /mnt/commonfs/")
-    time.sleep(5)
+    time.sleep(3)
     if not os.path.exists(samba_pkg):
         print(f"❌ Samba path {samba_pkg} not found")
         return
     build_installsamba_script()
 
-    run_cmd(f"bash -x installsamba.sh </dev/null", True)
+    run_cmd(f"bash installsamba.sh")
 
     if samba_cluster:
         print(f"\n⚙️ Setting up Samba + CTDB on {host}")
@@ -419,8 +404,6 @@ def main():
 
 
     start_servers()
-    
-
 if __name__ == "__main__":
     main()
 
