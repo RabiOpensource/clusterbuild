@@ -91,6 +91,37 @@ def write_public_address(device, base_ip, no_of_vms, start_ip):
             pub_ip = f"{base_ip}{start_ip + 10 + i}"
             f.write(f"{pub_ip}/24 {device}\n")
 
+def check_add_firewall_port(port, protocol="tcp"):
+    try:
+        port_proto = f"{port}/{protocol}"
+
+        # Get list of open ports
+        result = run_cmd("firewall-cmd --list-ports")
+        open_ports = result.strip().split() if result else []
+
+        if port_proto in open_ports:
+            print(f"✅ Port {port_proto} is already allowed in firewall.")
+            return True
+
+        # Add port permanently and reload firewall
+        print(f"➕ Adding port {port_proto} to firewall...")
+        run_cmd(f"firewall-cmd --permanent --add-port={port_proto}")
+        run_cmd("firewall-cmd --reload")
+
+        # Verify
+        result_after = run_cmd("firewall-cmd --list-ports")
+        if port_proto in result_after.strip().split():
+            print(f"✅ Port {port_proto} successfully added to firewall.")
+            return True
+        else:
+            print(f"❌ Failed to add port {port_proto} to firewall.")
+            return False
+
+    except Exception as e:
+        print(f"⚠️ Error ensuring firewall port {port}/{protocol}: {e}")
+        return False
+
+
 #files are related to samba so we are giving PREFIX_PATH
 def write_ctdb_conf_file(prefix_path):
     ctdb_conf =f"""
@@ -368,8 +399,9 @@ def main():
     if samba_cluster:
         print(f"\n⚙️ Setting up Samba + CTDB on {host}")
 
-    for port in ["22/tcp", "4379/tcp", "4379/udp", "445/tcp"]:
-        run_cmd(f"firewall-cmd --zone=public --permanent --add-port={port}")
+    for port in ["22", "4379", "4379", "445"]:
+        check_add_firewall_port(port)
+
     run_cmd("systemctl restart firewalld")
 
     add_user("user1", "samba", prefix_path)
