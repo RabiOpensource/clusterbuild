@@ -60,8 +60,10 @@ def run_remote(host, command, user="root"):
     import subprocess
     print(f"▶️ Running remote on {host}: {command}")
     result = subprocess.run(
-        ["ssh", host, command],
-        capture_output=True, text=True
+        ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", host, command],
+            capture_output=True,
+            text=True,
+            check=False
     )
     if result.returncode != 0:
         print(f"❌ Command failed: {result.stderr}")
