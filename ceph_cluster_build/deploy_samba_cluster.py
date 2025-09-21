@@ -35,14 +35,11 @@ def add_user(username, password="samba", prefix_path=""):
         run_cmd(f"(printf '%s\n' '{password}'; printf '%s\n' '{password}') | {prefix_path}/bin/smbpasswd -s -a {username}")
 
         print(f"User {username} created successfully.")
-
 def run_cmd(cmd, check=False, capture=True):
     shell = isinstance(cmd, str)
-
     print(f"▶️ Running local: {cmd}")
 
     try:
-        subprocess.run(cmd, shell=True, check=True)
         result = subprocess.run(
             cmd,
             shell=shell,
@@ -51,25 +48,28 @@ def run_cmd(cmd, check=False, capture=True):
             stderr=subprocess.STDOUT if capture else None,
             text=True
         )
-        return result.stdout.strip() if capture else ""
+        return result.stdout.strip() if capture and result.stdout else ""
     except subprocess.CalledProcessError as e:
         print(f"❌ Local command failed: {e}")
         if e.stdout:
             print(f"--- output ---\n{e.stdout}")
-        sys.exit(1 if check else 0)
-def run_remote(host, command, user="root"):
-    import subprocess
-    print(f"▶️ Running remote on {host}: {command}")
-    result = subprocess.run(
-        ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", host, command],
-            capture_output=True,
-            text=True,
-            check=False
-    )
-    if result.returncode != 0:
-        print(f"❌ Command failed: {result.stderr}")
+        if check:
+            sys.exit(1)
         return None
-    return result.stdout.strip()
+
+def run_remote(host, command, user="root", wait=True):
+    import subprocess
+
+    ssh_cmd = f"ssh {user}@{host} '{command}'"
+    print(f"▶️ Running remote on {host}: {command}")
+
+    if wait:
+        result = subprocess.run(ssh_cmd, shell=True, text=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        return result.stdout.strip()
+    else:
+        subprocess.Popen(ssh_cmd, shell=True)  # async, won’t block
+        return None
 
 def copy_file(host, src, dest, user="root"):
     scp_cmd = f"scp {src} {user}@{host}:{dest}"
@@ -203,25 +203,24 @@ def generating_ceph_key_ring():
     keyring_path = f"/etc/ceph/ceph.client.{samba_user}.keyring"
     os.makedirs("/etc/ceph", exist_ok=True)
 
-
-    # Check if already authorized
     auth_output = run_remote(ceph_head_node, f"ceph auth get client.{samba_user}", user=ssh_user)
     already_authorized = False
+
     if auth_output:
         match = re.search(r'caps mds = .*fsname=([A-Za-z0-9._-]+)', auth_output)
         if match and match.group(1) == fs_name:
             already_authorized = True
 
     if already_authorized:
-+        keyring_data = run_remote(ceph_head_node, f"ceph auth get client.{samba_user}", user=ssh_user)
-        run_cmd(get_key_cmd, check=True)
+        print(f"ℹ️ User client.{samba_user} already authorized for FS '{fs_name}', fetching keyring...")
+        keyring_data = auth_output  # reuse what we already got
     else:
         print(f"🔑 Authorizing client.{samba_user} for FS '{fs_name}'...")
         keyring_data = run_remote(
             ceph_head_node,
             f"ceph fs authorize {fs_name} client.{samba_user} / rw",
             user=ssh_user
-         )
+        )
 
     if keyring_data:
         with open(keyring_path, "w") as f:
@@ -231,6 +230,7 @@ def generating_ceph_key_ring():
     else:
         print("❌ Failed to generate keyring")
         return None
+
 
 def mount_cephfs(mount_point="/mnt/cephfs"):
     samba_user = read_config("SAMBA_USER") or "user1"
