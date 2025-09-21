@@ -5,6 +5,7 @@ import time
 import pwd
 import shutil
 import re
+import sys
 from configurecluster import *
 
 CONFIG_FILE = "cluster.config"
