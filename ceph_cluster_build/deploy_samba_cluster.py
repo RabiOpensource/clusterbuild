@@ -204,8 +204,8 @@ def generating_ceph_key_ring():
     os.makedirs("/etc/ceph", exist_ok=True)
 
 
-    check_cmd = f"ssh {ssh_user}@{ceph_head_node} 'ceph auth get client.{samba_user}'"
-    auth_output = run_cmd(check_cmd, check=False)
+    # Check if already authorized
+    auth_output = run_remote(ceph_head_node, f"ceph auth get client.{samba_user}", user=ssh_user)
     already_authorized = False
     if auth_output:
         match = re.search(r'caps mds = .*fsname=([A-Za-z0-9._-]+)', auth_output)
@@ -213,19 +213,19 @@ def generating_ceph_key_ring():
             already_authorized = True
 
     if already_authorized:
-        print(f"ℹ️ User client.{samba_user} is already authorized for FS '{fs_name}', fetching keyring...")
-        get_key_cmd = f"ssh {ssh_user}@{ceph_head_node} 'ceph auth get client.{samba_user}' | tee {keyring_path}"
++        keyring_data = run_remote(ceph_head_node, f"ceph auth get client.{samba_user}", user=ssh_user)
         run_cmd(get_key_cmd, check=True)
     else:
         print(f"🔑 Authorizing client.{samba_user} for FS '{fs_name}'...")
-        auth_cmd = (
-            f"ssh {ssh_user}@{ceph_head_node} "
-            f"\"ceph fs authorize {fs_name} client.{samba_user} / rw\" "
-            f"| tee {keyring_path}"
-        )
-        run_cmd(auth_cmd, check=True)
+        keyring_data = run_remote(
+            ceph_head_node,
+            f"ceph fs authorize {fs_name} client.{samba_user} / rw",
+            user=ssh_user
+         )
 
-    if os.path.exists(keyring_path):
+    if keyring_data:
+        with open(keyring_path, "w") as f:
+            f.write(keyring_data)
         print(f"✅ Ceph keyring ready at {keyring_path}")
         return keyring_path
     else:
@@ -326,17 +326,21 @@ def write_smb_conf_file():
         f.write(smb_conf)
 
 def build_installsamba_script():
-    configure_cmd = "./configure --enable-debug --without-ldb-lmdb --without-json  --without-ad-dc --enable-selftest"
+    mount_point = "/mnt/commonfs"
+    source_mount_point = f"cd {mount_point}/samba"
+    configure_cmd = f"./configure --enable-debug --without-ldb-lmdb --without-json  --without-ad-dc --enable-selftest"
     clustering = read_config("SAMBA_CLUSTERING")
 
     if clustering and clustering.strip().lower() in ["1", "yes", "true", "enabled"]:
         configure_cmd += " --with-cluster-support"
-    configure_cmd +="; make clean; make all -j$(nproc); make install"
+    configure_cmd +="; make all -j$(nproc); make install"
+
+    complete_file_script = source_mount_point + "\n" + configure_cmd
 
     # Write the configure string to script file
     with open("installsamba.sh", "w") as f:
         f.write("#!/bin/bash\n")
-        f.write(configure_cmd + "\n")
+        f.write(complete_file_script + "\n")
 
 def samba_node_init():
     samba_cluster = read_config("SAMBA_CLUSTERING")
@@ -397,7 +401,7 @@ def main():
         return
     build_installsamba_script()
 
-    run_cmd(f"bash installsamba.sh")
+    run_cmd(f"bash -x installsamba.sh </dev/null", True)
 
     if samba_cluster:
         print(f"\n⚙️ Setting up Samba + CTDB on {host}")
