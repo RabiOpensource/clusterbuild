@@ -342,7 +342,7 @@ def samba_node_init():
     base_ip = read_config("BASE_IP")
     no_of_vms = int(read_config("NO_OF_VMS"))
     net_interace = read_config("NETWORK_INTERFACE")
-    no_samba_vms = int(read_config("NO_OF_SAMBA_VMS")
+    no_samba_vms = int(read_config("NO_OF_SAMBA_VMS"))
     samba_nodes = [
         f"{base_ip}{ip}"
         for ip in range(start_ip + no_of_vms - no_samba_vms, start_ip + no_of_vms)
@@ -394,7 +394,7 @@ def main():
         return
     build_installsamba_script()
 
-    #run_cmd(f"bash installsamba.sh")
+    run_cmd(f"bash installsamba.sh")
 
     if samba_cluster:
         print(f"\n⚙️ Setting up Samba + CTDB on {host}")

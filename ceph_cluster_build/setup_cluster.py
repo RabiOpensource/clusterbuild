@@ -414,7 +414,7 @@ def cluster_init():
     base_ip = read_config("BASE_IP")
     gateway = read_config("GATEWAY")
     start_ip = read_config("START_IP")
-    host_base_name = ("HOST_BASE_NAME")
+    host_base_name = read_config("HOST_BASE_NAME")
 
     if not base_vm:
         raise ValueError("BASE_VM (ORIGINAL_VM) not defined in GENERAL section")
