@@ -352,13 +352,13 @@ def provision_ceph_node(config):
     except Exception as e:
         print(f"❌ Failed to provision Ceph node {ceph_vm_name}: {e}")
 
-def provision_samba_node(config):
-    start_ip = int(config["START_IP"])
-    no_of_vms = int(config["NO_OF_VMS"])
-    no_of_samba_vms = int(config["NO_OF_SAMBA_VMS"])
-    base_ip = config["BASE_IP"]
-    host_base_name = config["HOST_BASE_NAME"]
-    ssh_user = config["SSH_USER"]
+def provision_samba_node():
+    start_ip = int(read_config("START_IP"))
+    no_of_vms = int(read_config("NO_OF_VMS"))
+    no_of_samba_vms = int(read_config("NO_OF_SAMBA_VMS"))
+    base_ip = read_config("BASE_IP")
+    host_base_name = read_config("HOST_BASE_NAME")
+    ssh_user = read_config("SSH_USER")
 
     print("\n####################  PROVISION SAMBA NODES ############################")
 
@@ -452,13 +452,13 @@ def main():
     if "--clone" in args:
         clone_vm(config)
     if "--start_samba_cluster" in args:
-        provision_samba_node(config)
+        provision_samba_node()
     if "--start-ceph-cluster" in args:
         start_ceph_vm(config)
         start_samba_vm(config)
         make_distribute_ssh_keys(config)
         provision_ceph_node(config)
-        provision_samba_node(config)
+        provision_samba_node()
         print("Ceph provision not yet refactored")
     if "--single-ceph-single-samba" in args:
         config["NO_OF_VMS"] = 2
