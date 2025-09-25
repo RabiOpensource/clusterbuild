@@ -421,6 +421,9 @@ def cleanup_vms(config):
 
     if windows_vm is not None:
         stop_vm(windows_vm)
+    remove_config("CEPH_HEAD_NODE")
+    remove_config("BASE_IP")
+    remove_config("GATEWAY")
     print("✅ Cleanup completed")
 
 def cluster_init():
