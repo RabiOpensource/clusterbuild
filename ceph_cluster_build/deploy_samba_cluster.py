@@ -63,7 +63,7 @@ def copy_from_file(host, src, dest, user="root"):
     try:
         subprocess.run(scp_cmd, shell=True, check=True)
     except subprocess.CalledProcessError as e:
-        print(f"❌ File copy to {host} failed: {e}")
+        print(f"❌ File copy from {host} failed: {e}")
 
 def copy_file(host, src, dest, user="root"):
     scp_cmd = f"scp -o StrictHostKeyChecking=no {src} {user}@{host}:{dest}"
@@ -291,6 +291,22 @@ def is_mounted(mount_point: str) -> bool:
         print(f"Error checking mounts: {e}")
         return False
 
+def join_windows_server(prefix_path, domain="WIN2022.LOCAL", user="Administrator", password="Rabi@1234"):
+    domain_name = read_config("WINDOWS_DOMAIN")
+    domain_user = read_config("DOMAIN_USER")
+    domain_password = read_config("DOMAIN_PASSWORD")
+
+    if domain_name is None:
+        domain_name = domain
+    if domain_user is None:
+        domain_user = user
+    if domain_password is None:
+        domain_password is password
+
+    # NOTE: Replace credentials with secure source!
+    run_cmd(f"{prefix_path}/bin/net ads join -U {domain_user}%{domain_password} -S {domain_name}")
+    print(f"✅ Joined Windows domain {domain}")
+
 def write_smb_conf_file():
     samba_cluster = read_config("SAMBA_CLUSTERING")
     ceph_filesystem = get_ceph_file_system_name()
@@ -343,6 +359,7 @@ def samba_node_init():
     no_of_vms = int(read_config("NO_OF_VMS"))
     net_interace = read_config("NETWORK_INTERFACE")
     no_samba_vms = int(read_config("NO_OF_SAMBA_VMS"))
+    winbind_server = read_config("JOIN_TO_WINDOWS")
     samba_nodes = [
         f"{base_ip}{ip}"
         for ip in range(start_ip + no_of_vms - no_samba_vms, start_ip + no_of_vms)
@@ -358,6 +375,8 @@ def samba_node_init():
         write_public_address(net_interace, base_ip, no_samba_vms,
                              start_ip + no_of_vms - no_samba_vms,
                              prefix_path)
+    if winbind_server:
+        join_windows_server()
 def get_ceph_conf_file():
     ceph_head_node = read_config("CEPH_HEAD_NODE")
     if ceph_head_node is None:
