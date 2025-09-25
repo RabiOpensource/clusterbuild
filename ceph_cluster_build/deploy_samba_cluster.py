@@ -298,7 +298,7 @@ def write_smb_conf_file():
     valid_user = "user1"
     global_section = f"""
 [global]
-        log level = 10
+        log level = 1
 
 """
     if samba_cluster:
@@ -312,7 +312,6 @@ def write_smb_conf_file():
         ceph_new: user_id = {valid_user}
         ceph_new: config_file = /etc/ceph/ceph.conf
         browseable = yes
-        path = /mnt/cephfs/volumes/smbshares/share1
         read only = no
  """
     os.makedirs(f"{prefix_path}/etc/", exist_ok=True)
