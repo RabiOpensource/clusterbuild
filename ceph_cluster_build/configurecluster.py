@@ -42,6 +42,32 @@ def read_config(key: str, group: str = "GENERAL", file_path: str = CLUSTER_FILE)
 
     return None
 
+def remove_config(key: str, group: str = "GENERAL", file_path: str = CLUSTER_FILE):
+    """
+    Remove a key from the cluster.config file.
+    If the section becomes empty, it is kept (not deleted).
+    """
+    config = configparser.ConfigParser()
+    config.optionxform = str  # preserve case
+
+    if not os.path.exists(file_path):
+        print(f"⚠️ Config file {file_path} does not exist.")
+        return False
+
+    config.read(file_path)
+
+    if group in config and key in config[group]:
+        config.remove_option(group, key)
+
+        with open(file_path, "w") as f:
+            config.write(f)
+
+        print(f"🗑️ Removed '{key}' from section [{group}] in {file_path}")
+        return True
+    else:
+        print(f"⚠️ Key '{key}' not found in section [{group}] of {file_path}")
+        return False
+
 def update_gateway_to_config(config_file, ip, gateway):
     key = "GATEWAY"
     update_config(key, gateway)
