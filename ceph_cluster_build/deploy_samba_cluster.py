@@ -57,6 +57,14 @@ def run_remote(host, command, user="root", wait=True):
         subprocess.Popen(ssh_cmd, shell=True)  # async, won’t block
         return None
 
+def copy_from_file(host, src, dest, user="root"):
+    scp_cmd = f"scp -o StrictHostKeyChecking=no {user}@{host}:{src} {dest}"
+    print(f"📤 Copying {src} -> {host}:{dest}")
+    try:
+        subprocess.run(scp_cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ File copy to {host} failed: {e}")
+
 def copy_file(host, src, dest, user="root"):
     scp_cmd = f"scp -o StrictHostKeyChecking=no {src} {user}@{host}:{dest}"
     print(f"📤 Copying {src} -> {host}:{dest}")
@@ -341,6 +349,7 @@ def samba_node_init():
         for ip in range(start_ip + no_of_vms - no_samba_vms, start_ip + no_of_vms)
     ]
     ceph_fuse_install()
+    get_ceph_conf_file()
     generating_ceph_key_ring()
     mount_cephfs()
     write_smb_conf_file()
@@ -350,6 +359,19 @@ def samba_node_init():
         write_public_address(net_interace, base_ip, no_samba_vms,
                              start_ip + no_of_vms - no_samba_vms,
                              prefix_path)
+def get_ceph_conf_file():
+    ceph_head_node = read_config("CEPH_HEAD_NODE")
+    if ceph_head_node is None:
+        print("❌ Could not able find ceph Head Node")
+        sys.exit(1)
+    else:
+        try:
+        copy_from_file(ceph_head_node, "/etc/ceph/ceph.conf", "/etc/ceph/ceph.conf")
+        print(f"✅ /etc/ceph/ceph.conf is copied from Ceph Head Node {ceph_head_node}")
+    except Exception as e:
+        print(f"❌ Failed to copy ceph.conf from {ceph_head_node}: {e}")
+        sys.exit(1)
+
 def start_servers():
     samba_cluster = read_config("SAMBA_CLUSTERING")
     prefix_path=read_config("PATH_TO_CONFIGURE")
