@@ -36,7 +36,7 @@ def add_user(username, password="samba", prefix_path=""):
 
         print(f"User {username} created successfully.")
 
-def run_cmd(cmd):
+def run_cmd(cmd, check=True):
     print(f"▶️ Running local: {cmd}")
     try:
         subprocess.run(cmd, shell=True, check=True)
@@ -46,7 +46,7 @@ def run_cmd(cmd):
 def run_remote(host, command, user="root", wait=True):
     import subprocess
 
-    ssh_cmd = f"ssh {user}@{host} '{command}'"
+    ssh_cmd = f"ssh -o StrictHostKeyChecking=no {user}@{host} '{command}'"
     print(f"▶️ Running remote on {host}: {command}")
 
     if wait:
@@ -58,7 +58,7 @@ def run_remote(host, command, user="root", wait=True):
         return None
 
 def copy_file(host, src, dest, user="root"):
-    scp_cmd = f"scp {src} {user}@{host}:{dest}"
+    scp_cmd = f"scp -o StrictHostKeyChecking=no {src} {user}@{host}:{dest}"
     print(f"📤 Copying {src} -> {host}:{dest}")
     try:
         subprocess.run(scp_cmd, shell=True, check=True)
