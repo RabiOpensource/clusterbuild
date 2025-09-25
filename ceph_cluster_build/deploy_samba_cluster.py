@@ -366,11 +366,11 @@ def get_ceph_conf_file():
         sys.exit(1)
     else:
         try:
-        copy_from_file(ceph_head_node, "/etc/ceph/ceph.conf", "/etc/ceph/ceph.conf")
-        print(f"✅ /etc/ceph/ceph.conf is copied from Ceph Head Node {ceph_head_node}")
-    except Exception as e:
-        print(f"❌ Failed to copy ceph.conf from {ceph_head_node}: {e}")
-        sys.exit(1)
+            copy_from_file(ceph_head_node, "/etc/ceph/ceph.conf", "/etc/ceph/ceph.conf")
+            print(f"✅ /etc/ceph/ceph.conf is copied from Ceph Head Node {ceph_head_node}")
+        except Exception as e:
+            print(f"❌ Failed to copy ceph.conf from {ceph_head_node}: {e}")
+            sys.exit(1)
 
 def start_servers():
     samba_cluster = read_config("SAMBA_CLUSTERING")
