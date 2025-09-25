@@ -164,49 +164,51 @@ def clone_vm(config):
     original_vm = read_config('ORIGINAL_VM')
     no_of_device = int(read_config('NO_OF_DEVICE'))
     configure_ceph = read_config("CONFIGURE_CEPH")
+    samba_cluster = read_config("SAMBA_CLUSTERING")
+    no_of_samba_vms = int(read_config("NO_OF_SAMBA_VMS"))
 
-    if (configure_ceph and configure_ceph.strip().lower() == "yes"):
-        for i in range(start_ip, start_ip + no_of_vm):
-            host_name = f"{host_base_name}{i}"
-            ip = f"{base_ip}{i}"
-            public_ip = f"{base_ip}{i + 10}"
-            if check_vm_exists(host_name):
-                continue
-            print(f"############## Cloning {host_name} #######################")
-            cmd = f"{VIRT_CLONE} --original {original_vm} --name {host_name} --auto-clone --file /var/lib/libvirt/images/{host_name}.qcow2"
-            run_cmd(cmd, check=True)
-            create_ip_for_host(config, ip, public_ip)
-            configuring_vm(config, host_name, ip, public_ip)
-            run_cmd(f"ssh-copy-id -o StrictHostKeyChecking=no {ssh_user}@{host_name}")
+    for i in range(start_ip, start_ip + no_of_vm):
+        host_name = f"{host_base_name}{i}"
+        ip = f"{base_ip}{i}"
+        public_ip = f"{base_ip}{i + 10}"
 
-            if i == start_ip:
-                print(f"Adding disk(s) to {host_name}")
-                start_letter = "b"
-                if check_vm_exists(host_name):
-                    for j in range(no_of_device):
-                        letter_index = string.ascii_lowercase.index(start_letter)
-                        device_letter = string.ascii_lowercase[letter_index + j]
-                        device_name = f"vd{device_letter}"
-                        disk = f"/var/lib/libvirt/images/{host_name}_disk{j}.qcow2"
-                        run_cmd(f"qemu-img create -f qcow2 {disk} 5G")
-                        time.sleep(1)
-                        run_cmd(f"virsh attach-disk {host_name} {disk} {device_name} --cache=none --subdriver=qcow2 --persistent")
-                        print(f"Disk {disk} added to {host_name}")
-    else:
-        samba_cluster = read_config("SAMBA_CLUSTERING")
-        if (samba_cluster and samba_cluster.strip().lower() == "yes"):
-            print("Code implementation is required for no of vms to create if cluster is yes")
+        if configure_ceph and configure_ceph.strip().lower() == "yes" \
+           and i < start_ip + no_of_vm - no_of_samba_vms:
+            role = "ceph"
         else:
-            no_of_samba_vms = int(read_config("NO_OF_SAMBA_VMS"))
-            samba_vm = start_ip + no_of_vm - no_of_samba_vms
-            host_name = f"{host_base_name}{samba_vm}"
-            cmd = f"{VIRT_CLONE} --original {original_vm} --name {host_name} --auto-clone --file /var/lib/libvirt/images/{host_name}.qcow2"
-            run_cmd(cmd, check=True)
-            ip = f"{base_ip}{samba_vm}"
-            public_ip = f"{base_ip}{samba_vm + 10}"
-            create_ip_for_host(config, ip, public_ip)
-            configuring_vm(config, host_name, ip, public_ip)
-            run_cmd(f"ssh-copy-id -o {ssh_user}@{host_name}")
+            role = "samba"
+
+        if check_vm_exists(host_name):
+            print(f"➡️ {host_name} already exists, skipping ({role} node).")
+            continue
+
+        print(f"############## Cloning {role.upper()} node {host_name} #######################")
+        cmd = (
+            f"{VIRT_CLONE} --original {original_vm} "
+            f"--name {host_name} --auto-clone "
+            f"--file /var/lib/libvirt/images/{host_name}.qcow2"
+        )
+        run_cmd(cmd, check=True)
+
+        # Configure IPs and VM
+        create_ip_for_host(config, ip, public_ip)
+        configuring_vm(config, host_name, ip, public_ip)
+
+        # SSH setup
+        run_cmd(f"sshpass -p {ssh_pwd} ssh-copy-id -o StrictHostKeyChecking=no {ssh_user}@{host_name}")
+
+        # Add disks only for the very first Ceph node
+        if role == "ceph" and i == start_ip and no_of_device > 0:
+            print(f"Adding {no_of_device} disk(s) to {host_name}")
+            start_letter = "b"
+            for j in range(no_of_device):
+                device_letter = string.ascii_lowercase[string.ascii_lowercase.index(start_letter) + j]
+                device_name = f"vd{device_letter}"
+                disk = f"/var/lib/libvirt/images/{host_name}_disk{j}.qcow2"
+                run_cmd(f"qemu-img create -f qcow2 {disk} 5G")
+                run_cmd(f"virsh attach-disk {host_name} {disk} {device_name} "
+                        "--cache=none --subdriver=qcow2 --persistent")
+                print(f"✅ Disk {disk} added to {host_name}")
 
 def cleanup_local_authorized_keys(config):
     samba_cluster = read_config("SAMBA_CLUSTERING")
@@ -299,7 +301,7 @@ def stop_vm(vm_name):
     status = check_vm_status(vm_name)
     if status == "running":
         print(f"{vm_name} VM is running. Shutting it down")
-        run_cmd(f"virsh shutdown {vm_name}")
+        run_cmd(f"virsh destroy {vm_name}")
         while check_vm_status(vm_name) == "running": time.sleep(1)
     elif status in ("shut off", "paused"):
         print(f"{vm_name} VM is not running")
@@ -479,6 +481,8 @@ def cleanup_vms(config):
     remove_config("BASE_IP")
     remove_config("GATEWAY")
     remove_config("JOIN_TO_WINDOWS")
+    remove_config("CONFIGURE_CEPH")
+    remove_config("SAMBA_CLUSTERING")
     print("✅ Cleanup completed")
 
 def cluster_init():
