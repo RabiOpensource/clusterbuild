@@ -291,17 +291,20 @@ def is_mounted(mount_point: str) -> bool:
         print(f"Error checking mounts: {e}")
         return False
 
-def join_windows_server(prefix_path, domain="WIN2022.LOCAL", user="Administrator", password="Rabi@1234"):
+def join_windows_server(path="", domain="CEPHSMB.LOCAL", user="Administrator", password="Rabi@1234"):
     domain_name = read_config("WINDOWS_DOMAIN")
     domain_user = read_config("DOMAIN_USER")
     domain_password = read_config("DOMAIN_PASSWORD")
+    prefix_path = read_config("PATH_TO_CONFIGURE")
 
     if domain_name is None:
         domain_name = domain
     if domain_user is None:
         domain_user = user
     if domain_password is None:
-        domain_password is password
+        domain_password = password
+    if prefix_path is None:
+        prefix_path = path
 
     # NOTE: Replace credentials with secure source!
     run_cmd(f"{prefix_path}/bin/net ads join -U {domain_user}%{domain_password} -S {domain_name}")
@@ -309,9 +312,12 @@ def join_windows_server(prefix_path, domain="WIN2022.LOCAL", user="Administrator
 
 def write_smb_conf_file():
     samba_cluster = read_config("SAMBA_CLUSTERING")
+    configure_ceph = read_config("CONFIGURE_CEPH")
     ceph_filesystem = get_ceph_file_system_name()
     prefix_path=read_config("PATH_TO_CONFIGURE")
     valid_user = "user1"
+    if configure_ceph is None:
+        os.makedirs("/sambashare", exist_ok=True)
     global_section = f"""
 [global]
         log level = 1
@@ -319,7 +325,8 @@ def write_smb_conf_file():
 """
     if samba_cluster:
         global_section += "        clustering = yes\n"
-    smb_conf = global_section + f"""
+    if configure_ceph :
+        additional_conf = f"""
 [share1]
         vfs objects = ceph_new
         path = /
@@ -330,6 +337,15 @@ def write_smb_conf_file():
         browseable = yes
         read only = no
  """
+    else:
+        additional_conf = f"""
+[share1]
+        path = /sambashare
+        browseable = yes
+        read only = no
+
+"""
+    smb_conf = global_section + additional_conf
     os.makedirs(f"{prefix_path}/etc/", exist_ok=True)
     with open(f"{prefix_path}/etc/smb.conf", "w") as f:
         f.write(smb_conf)
@@ -353,6 +369,7 @@ def build_installsamba_script():
 
 def samba_node_init():
     samba_cluster = read_config("SAMBA_CLUSTERING")
+    configure_ceph = read_config("CONFIGURE_CEPH")
     prefix_path=read_config("PATH_TO_CONFIGURE")
     start_ip = int(read_config("START_IP"))
     base_ip = read_config("BASE_IP")
@@ -364,10 +381,11 @@ def samba_node_init():
         f"{base_ip}{ip}"
         for ip in range(start_ip + no_of_vms - no_samba_vms, start_ip + no_of_vms)
     ]
-    ceph_fuse_install()
-    get_ceph_conf_file()
-    generating_ceph_key_ring()
-    mount_cephfs()
+    if configure_ceph:
+        ceph_fuse_install()
+        get_ceph_conf_file()
+        generating_ceph_key_ring()
+        mount_cephfs()
     write_smb_conf_file()
     if samba_cluster:
         write_ctdb_conf_file()
@@ -375,8 +393,6 @@ def samba_node_init():
         write_public_address(net_interace, base_ip, no_samba_vms,
                              start_ip + no_of_vms - no_samba_vms,
                              prefix_path)
-    if winbind_server:
-        join_windows_server()
 def get_ceph_conf_file():
     ceph_head_node = read_config("CEPH_HEAD_NODE")
     if ceph_head_node is None:
@@ -410,6 +426,7 @@ def main():
     net_interace = read_config("NETWORK_INTERFACE")
     base_ip = read_config("BASE_IP")
     no_of_vms = int(read_config("NO_OF_VMS"))
+    winbind_server = read_config("JOIN_TO_WINDOWS")
 
     head_node = f'{base_ip}{start_ip}'
     all_node = [f"{base_ip}{start_ip}" for i in range(no_of_vms)]
@@ -436,7 +453,10 @@ def main():
 
     run_cmd("systemctl restart firewalld")
 
-    add_user("user1", "samba", prefix_path)
+    if winbind_server:
+        join_windows_server()
+    else:
+        add_user("user1", "samba", prefix_path)
 
     if samba_cluster:
         for script in ["00.ctdb", "01.reclock", "05.system", "10.interface", "95.database"]:
