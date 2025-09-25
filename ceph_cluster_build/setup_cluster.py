@@ -177,7 +177,7 @@ def clone_vm(config):
             run_cmd(cmd, check=True)
             create_ip_for_host(config, ip, public_ip)
             configuring_vm(config, host_name, ip, public_ip)
-            run_cmd(f"ssh-copy-id -o {ssh_user}@{host_name}")
+            run_cmd(f"ssh-copy-id -o StrictHostKeyChecking=no {ssh_user}@{host_name}")
 
             if i == start_ip:
                 print(f"Adding disk(s) to {host_name}")
@@ -322,10 +322,11 @@ def start_vm(vm_name):
     else:
         print(f"ℹ️ Unknown VM state: {status}")
 
-def start_ceph_vm(config):
-    start_ip = int(config["START_IP"])
-    base_ip = config["BASE_IP"]
-    host_base_name = config["HOST_BASE_NAME"]
+def start_ceph_vm():
+    start_ip = int(read_config("START_IP"))
+    base_ip = read_config("BASE_IP")
+    host_base_name = read_config("HOST_BASE_NAME")
+    update_config("CONFIGURE_CEPH", "yes")
 
     # Ceph VM is the first VM in the cluster
     ceph_vm_name = f"{host_base_name}{start_ip}"
@@ -525,9 +526,10 @@ def main():
             update_config("CONFIGURE_CEPH", "yes")
         clone_vm(config)
     if "--start_samba_cluster" in args:
+        update_config("SAMBA_CLUSTERING", "yes")
         provision_samba_node()
     if "--start-ceph-cluster" in args:
-        start_ceph_vm(config)
+        start_ceph_vm()
         start_samba_vm(config)
         make_distribute_ssh_keys(config)
         provision_ceph_node(config)
@@ -536,7 +538,7 @@ def main():
     if "--single-ceph-single-samba" in args:
         config["NO_OF_VMS"] = 2
         clone_vm(config)
-        start_ceph_vm(config)
+        start_ceph_vm()
         start_samba_vm(config)
         make_distribute_ssh_keys(config)
         print("Single Ceph + Samba clone not yet refactored")
