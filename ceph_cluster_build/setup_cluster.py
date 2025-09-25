@@ -44,61 +44,67 @@ def load_config(file_path=CONFIG_FILE):
 
 # ---------------- SSH KEY HANDLING ----------------
 def build_authorized_keys(config):
-    collected_keys = set()
+    samba_cluster = read_config("SAMBA_CLUSTERING")
+    configure_ceph = read_config("CONFIGURE_CEPH")
+    if samba_cluster and configure_ceph:
+        collected_keys = set()
 
-    start_ip = int(config["START_IP"])
-    no_of_vm = int(config["NO_OF_VMS"])
-    host_base_name = config["HOST_BASE_NAME"]
-    pubkey_dir = config["PUBKEY_DIR"]
-    authorized_keys = config["AUTHORIZED_KEYS"]
+        start_ip = int(config["START_IP"])
+        no_of_vm = int(config["NO_OF_VMS"])
+        host_base_name = config["HOST_BASE_NAME"]
+        pubkey_dir = config["PUBKEY_DIR"]
+        authorized_keys = config["AUTHORIZED_KEYS"]
 
-    for i in range(start_ip, start_ip + no_of_vm):
-        pubkey_file = os.path.join(pubkey_dir, f"{host_base_name}{i}_id_rsa.pub")
-        if os.path.exists(pubkey_file):
-            with open(pubkey_file, "r") as f:
-                key = f.read().strip()
-                if key and key not in collected_keys:
-                    collected_keys.add(key)
+        for i in range(start_ip, start_ip + no_of_vm):
+            pubkey_file = os.path.join(pubkey_dir, f"{host_base_name}{i}_id_rsa.pub")
+            if os.path.exists(pubkey_file):
+                with open(pubkey_file, "r") as f:
+                    key = f.read().strip()
+                    if key and key not in collected_keys:
+                        collected_keys.add(key)
+            else:
+                print(f"⚠️ Skipping missing key file: {pubkey_file}")
+
+        local_key_file = os.path.expanduser("~/.ssh/id_rsa.pub")
+        if os.path.exists(local_key_file):
+            with open(local_key_file, "r") as f:
+                local_key = f.read().strip()
+                if local_key and local_key not in collected_keys:
+                    collected_keys.add(local_key)
+                    print(f"➕ Added local system key: {local_key_file}")
         else:
-            print(f"⚠️ Skipping missing key file: {pubkey_file}")
+            print(f"⚠️ Local public key not found: {local_key_file}")
 
-    local_key_file = os.path.expanduser("~/.ssh/id_rsa.pub")
-    if os.path.exists(local_key_file):
-        with open(local_key_file, "r") as f:
-            local_key = f.read().strip()
-            if local_key and local_key not in collected_keys:
-                collected_keys.add(local_key)
-                print(f"➕ Added local system key: {local_key_file}")
-    else:
-        print(f"⚠️ Local public key not found: {local_key_file}")
+        with open(authorized_keys, "w") as f:
+            f.write("\n".join(collected_keys) + "\n")
 
-    with open(authorized_keys, "w") as f:
-        f.write("\n".join(collected_keys) + "\n")
-
-    print(f"✅ Authorized_keys built with {len(collected_keys)} unique keys")
+        print(f"✅ Authorized_keys built with {len(collected_keys)} unique keys")
 
 
 def distribute_keys(config):
-    start_ip = int(config["START_IP"])
-    no_of_vm = int(config["NO_OF_VMS"])
-    base_ip = config["BASE_IP"]
-    ssh_user = config["SSH_USER"]
-    ssh_pass = config["SSH_PASS"]
-    authorized_keys = config["AUTHORIZED_KEYS"]
+    samba_cluster = read_config("SAMBA_CLUSTERING")
+    configure_ceph = read_config("CONFIGURE_CEPH")
+    if samba_cluster and configure_ceph:
+        start_ip = int(config["START_IP"])
+        no_of_vm = int(config["NO_OF_VMS"])
+        base_ip = config["BASE_IP"]
+        ssh_user = config["SSH_USER"]
+        ssh_pass = config["SSH_PASS"]
+        authorized_keys = config["AUTHORIZED_KEYS"]
 
-    for i in range(start_ip, start_ip + no_of_vm):
-        ip = f"{base_ip}{i}"
-        print(f"🚀 Copying authorized_keys to {ip}...")
-        try:
-            subprocess.run([
-                "sshpass", "-p", ssh_pass,
-                "scp", "-o", "StrictHostKeyChecking=no",
-                authorized_keys,
-                f"{ssh_user}@{ip}:/root/.ssh/authorized_keys"
-            ], check=True)
-            print(f"✅ Copied authorized_keys to {ip}")
-        except subprocess.CalledProcessError:
-            print(f"❌ Failed to copy to {ip}")
+        for i in range(start_ip, start_ip + no_of_vm):
+            ip = f"{base_ip}{i}"
+            print(f"🚀 Copying authorized_keys to {ip}...")
+            try:
+                subprocess.run([
+                    "sshpass", "-p", ssh_pass,
+                    "scp", "-o", "StrictHostKeyChecking=no",
+                    authorized_keys,
+                    f"{ssh_user}@{ip}:/root/.ssh/authorized_keys"
+                ], check=True)
+                print(f"✅ Copied authorized_keys to {ip}")
+            except subprocess.CalledProcessError:
+                print(f"❌ Failed to copy to {ip}")
 
 def generating_ssh_key(hostname, ip):
     print(f"Copying generate_ssh_key.sh to {hostname}")
@@ -157,48 +163,67 @@ def clone_vm(config):
     host_base_name = read_config('HOST_BASE_NAME')
     original_vm = read_config('ORIGINAL_VM')
     no_of_device = int(read_config('NO_OF_DEVICE'))
+    configure_ceph = read_config("CONFIGURE_CEPH")
 
-    for i in range(start_ip, start_ip + no_of_vm):
-        host_name = f"{host_base_name}{i}"
-        ip = f"{base_ip}{i}"
-        public_ip = f"{base_ip}{i + 10}"
-        if check_vm_exists(host_name):
-            continue
-        print(f"############## Cloning {host_name} #######################")
-        cmd = f"{VIRT_CLONE} --original {original_vm} --name {host_name} --auto-clone --file /var/lib/libvirt/images/{host_name}.qcow2"
-        run_cmd(cmd, check=True)
-        create_ip_for_host(config, ip, public_ip)
-        configuring_vm(config, host_name, ip, public_ip)
-        run_cmd(f"ssh-copy-id -o {ssh_user}@{host_name}")
-
-        if i == start_ip:
-            print(f"Adding disk(s) to {host_name}")
-            start_letter = "b"
+    if (configure_ceph and configure_ceph.strip().lower() == "yes"):
+        for i in range(start_ip, start_ip + no_of_vm):
+            host_name = f"{host_base_name}{i}"
+            ip = f"{base_ip}{i}"
+            public_ip = f"{base_ip}{i + 10}"
             if check_vm_exists(host_name):
-                for j in range(no_of_device):
-                    letter_index = string.ascii_lowercase.index(start_letter)
-                    device_letter = string.ascii_lowercase[letter_index + j]
-                    device_name = f"vd{device_letter}"
-                    disk = f"/var/lib/libvirt/images/{host_name}_disk{j}.qcow2"
-                    run_cmd(f"qemu-img create -f qcow2 {disk} 5G")
-                    time.sleep(1)
-                    run_cmd(f"virsh attach-disk {host_name} {disk} {device_name} --cache=none --subdriver=qcow2 --persistent")
-                    print(f"Disk {disk} added to {host_name}")
+                continue
+            print(f"############## Cloning {host_name} #######################")
+            cmd = f"{VIRT_CLONE} --original {original_vm} --name {host_name} --auto-clone --file /var/lib/libvirt/images/{host_name}.qcow2"
+            run_cmd(cmd, check=True)
+            create_ip_for_host(config, ip, public_ip)
+            configuring_vm(config, host_name, ip, public_ip)
+            run_cmd(f"ssh-copy-id -o {ssh_user}@{host_name}")
+
+            if i == start_ip:
+                print(f"Adding disk(s) to {host_name}")
+                start_letter = "b"
+                if check_vm_exists(host_name):
+                    for j in range(no_of_device):
+                        letter_index = string.ascii_lowercase.index(start_letter)
+                        device_letter = string.ascii_lowercase[letter_index + j]
+                        device_name = f"vd{device_letter}"
+                        disk = f"/var/lib/libvirt/images/{host_name}_disk{j}.qcow2"
+                        run_cmd(f"qemu-img create -f qcow2 {disk} 5G")
+                        time.sleep(1)
+                        run_cmd(f"virsh attach-disk {host_name} {disk} {device_name} --cache=none --subdriver=qcow2 --persistent")
+                        print(f"Disk {disk} added to {host_name}")
+    else:
+        samba_cluster = read_config("SAMBA_CLUSTERING")
+        if (samba_cluster and samba_cluster.strip().lower() == "yes"):
+            print("Code implementation is required for no of vms to create if cluster is yes")
+        else:
+            no_of_samba_vms = int(read_config("NO_OF_SAMBA_VMS"))
+            samba_vm = start_ip + no_of_vm - no_of_samba_vms
+            host_name = f"{host_base_name}{samba_vm}"
+            cmd = f"{VIRT_CLONE} --original {original_vm} --name {host_name} --auto-clone --file /var/lib/libvirt/images/{host_name}.qcow2"
+            run_cmd(cmd, check=True)
+            ip = f"{base_ip}{samba_vm}"
+            public_ip = f"{base_ip}{samba_vm + 10}"
+            create_ip_for_host(config, ip, public_ip)
+            configuring_vm(config, host_name, ip, public_ip)
+            run_cmd(f"ssh-copy-id -o {ssh_user}@{host_name}")
 
 def cleanup_local_authorized_keys(config):
-    authorized_keys = config["AUTHORIZED_KEYS"]
-    pubkey_dir = config["PUBKEY_DIR"]
-    host_base_name = config["HOST_BASE_NAME"]
+    samba_cluster = read_config("SAMBA_CLUSTERING")
+    configure_ceph = read_config("CONFIGURE_CEPH")
+    if samba_cluster and configure_ceph:
+        authorized_keys = config["AUTHORIZED_KEYS"]
+        pubkey_dir = config["PUBKEY_DIR"]
+        host_base_name = config["HOST_BASE_NAME"]
 
-    if os.path.exists(authorized_keys):
-        os.remove(authorized_keys)
-        print(f"🗑️ Deleted local {authorized_keys}")
+        if os.path.exists(authorized_keys):
+            os.remove(authorized_keys)
+            print(f"🗑️ Deleted local {authorized_keys}")
 
-    pub_files = glob.glob(os.path.join(pubkey_dir, f"{host_base_name}*_id_rsa.pub"))
-    for pub_file in pub_files:
-        os.remove(pub_file)
-        print(f"🗑️ Deleted {pub_file}")
-
+        pub_files = glob.glob(os.path.join(pubkey_dir, f"{host_base_name}*_id_rsa.pub"))
+        for pub_file in pub_files:
+            os.remove(pub_file)
+            print(f"🗑️ Deleted {pub_file}")
 
 def make_distribute_ssh_keys(config):
     build_authorized_keys(config)
@@ -327,22 +352,34 @@ def start_windows_vm():
     print(f"✅ Windows VM {windows_vm} started")
 
 def start_samba_vm(config):
-    start_ip = int(config["START_IP"])
-    no_of_vms = int(config["NO_OF_VMS"])
-    base_ip = config["BASE_IP"]
-    host_base_name = config["HOST_BASE_NAME"]
+    start_ip = int(read_config("START_IP"))
+    no_of_vms = int(read_config("NO_OF_VMS"))
+    base_ip = read_config("BASE_IP")
+    host_base_name = read_config("HOST_BASE_NAME")
+    samba_cluster = read_config("SAMBA_CLUSTERING")
+    no_of_samba_vms = int(read_config("NO_OF_SAMBA_VMS"))
 
-    # Samba nodes start after the Ceph node
-    for i in range(start_ip + 1, start_ip + no_of_vms):
-        samba_vm_name = f"{host_base_name}{i}"
-        samba_vm_ip = f"{base_ip}{i}"
+    if (samba_cluster and samba_cluster.strip().lower() == "yes"):
+        for i in range(start_ip + 1, start_ip + no_of_vms):
+            samba_vm_name = f"{host_base_name}{i}"
+            samba_vm_ip = f"{base_ip}{i}"
 
-        print(f"🚀 Starting Samba VM {samba_vm_name} ({samba_vm_ip})")
+            print(f"🚀 Starting Samba VM {samba_vm_name} ({samba_vm_ip})")
+            try:
+                start_vm(samba_vm_name)
+                print(f"✅ Samba VM {samba_vm_name} started successfully")
+            except Exception as e:
+                print(f"❌ Failed to start Samba VM {samba_vm_name}: {e}")
+    else:
+        samba_vm = start_ip + no_of_vms - no_of_samba_vms
+        host_name = f"{host_base_name}{samba_vm}"
+
+        print(f"🚀 Starting Samba VM {host_name}")
         try:
-            start_vm(samba_vm_name)
-            print(f"✅ Samba VM {samba_vm_name} started successfully")
+            start_vm(host_name)
+            print(f"✅ Samba VM {host_name} started successfully")
         except Exception as e:
-            print(f"❌ Failed to start Samba VM {samba_vm_name}: {e}")
+            print(f"❌ Failed to start Samba VM {host_name}: {e}")
 
 def provision_ceph_node(config):
     start_ip = int(config["START_IP"])
@@ -366,6 +403,7 @@ def provision_ceph_node(config):
         print(f"❌ Failed to provision Ceph node {ceph_vm_name}: {e}")
 
 def provision_samba_node():
+    samba_cluster = read_config("SAMBA_CLUSTERING")
     start_ip = int(read_config("START_IP"))
     no_of_vms = int(read_config("NO_OF_VMS"))
     no_of_samba_vms = int(read_config("NO_OF_SAMBA_VMS"))
@@ -375,7 +413,7 @@ def provision_samba_node():
 
     print("\n####################  PROVISION SAMBA NODES ############################")
 
-    if (no_of_samba_vms > 1):
+    if samba_cluster:
         # Samba nodes start after Ceph node
         for i in range(start_ip + no_of_vms - no_of_samba_vms, start_ip + no_of_vms):
             samba_vm_name = f"{host_base_name}{i}"
@@ -391,6 +429,21 @@ def provision_samba_node():
                 print(f"✅ Samba node {samba_vm_name} provisioned successfully")
             except Exception as e:
                 print(f"❌ Failed to provision Samba node {samba_vm_name}: {e}")
+    else:
+            samba_vm = start_ip + no_of_vms - no_of_samba_vms
+            host_name = f"{host_base_name}{samba_vm}"
+
+            print(f"\n⚙️  Provisioning Samba on {host_name} ")
+
+            try:
+                copy_file(host_name, "cluster.config", "cluster.config", ssh_user)
+                copy_file(host_name, "deploy_samba_cluster.py", "deploy_samba_cluster.py", ssh_user)
+                copy_file(host_name, "configurecluster.py", "configurecluster.py", ssh_user)
+                run_remote(host_name, "python3 deploy_samba_cluster.py", ssh_user)
+                print(f"✅ Samba node {samba_vm_name} provisioned successfully")
+            except Exception as e:
+                print(f"❌ Failed to provision Samba node {samba_vm_name}: {e}")
+
 
 def cleanup_vms(config):
     start_ip = int(config["START_IP"])
@@ -424,6 +477,7 @@ def cleanup_vms(config):
     remove_config("CEPH_HEAD_NODE")
     remove_config("BASE_IP")
     remove_config("GATEWAY")
+    remove_config("JOIN_TO_WINDOWS")
     print("✅ Cleanup completed")
 
 def cluster_init():
@@ -467,6 +521,8 @@ def main():
     if "--cleanup" in args:
         cleanup_vms(config)
     if "--clone" in args:
+        if "--start-ceph-cluster" in args:
+            update_config("CONFIGURE_CEPH", "yes")
         clone_vm(config)
     if "--start_samba_cluster" in args:
         provision_samba_node()
@@ -485,7 +541,14 @@ def main():
         make_distribute_ssh_keys(config)
         print("Single Ceph + Samba clone not yet refactored")
     if "--start-winbind" in args:
+        update_config("JOIN_TO_WINDOWS","yes")
         start_windows_vm()
+    if "--start-samba-server" in args:
+        if "--start-winbind" in args:
+            update_config("JOIN_TO_WINDOWS","yes")
+        start_samba_vm(config)
+        make_distribute_ssh_keys(config)
+        provision_samba_node()
 
 if __name__ == "__main__":
     main()
