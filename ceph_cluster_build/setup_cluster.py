@@ -313,6 +313,19 @@ def start_ceph_vm(config):
     except Exception as e:
         print(f"❌ Failed to start Ceph VM {ceph_vm_name}: {e}")
 
+def start_windows_vm():
+    windows_vm = read_config("WINDOWS_SERVER")
+    if windows_vm is None:
+        print(f"❌ Windows server is not defined")
+        sys.exit(1)
+    print(f"🚀 Starting Windows VM {windows_vm}")
+    try:
+        start_vm(windows_vm)
+        time.sleep(10)
+    except Exception as e:
+        print(f"❌ Failed to start Samba VM {samba_vm_name}: {e}")
+    print(f"✅ Windows VM {windows_vm} started")
+
 def start_samba_vm(config):
     start_ip = int(config["START_IP"])
     no_of_vms = int(config["NO_OF_VMS"])
@@ -383,10 +396,10 @@ def cleanup_vms(config):
     start_ip = int(config["START_IP"])
     no_of_vms = int(config["NO_OF_VMS"])
     host_base_name = config["HOST_BASE_NAME"]
+    windows_vm = read_config("WINDOWS_SERVER")
 
     print("\n<<<<<<<<<<<<<< Cleaning up VMs >>>>>>>>>>>>>>>>")
 
-    # Step 1: Shutdown and undefine all VMs
     for i in range(start_ip, start_ip + no_of_vms):
         vm_name = f"{host_base_name}{i}"
         status = check_vm_status(vm_name)
@@ -399,7 +412,6 @@ def cleanup_vms(config):
         print(f"🗑️  Removing VM definition for {vm_name}")
         run_cmd(f"virsh undefine {vm_name} --remove-all-storage")
 
-    # Step 2: Remove leftover disks
     for i in range(start_ip, start_ip + no_of_vms):
         vm_name = f"{host_base_name}{i}"
         for disk_file in glob.glob(f"/var/lib/libvirt/images/{vm_name}_disk*.qcow2"):
@@ -407,6 +419,8 @@ def cleanup_vms(config):
                 os.remove(disk_file)
                 print(f"🗑️  Deleted disk {disk_file}")
 
+    if windows_vm is not None:
+        stop_vm(windows_vm)
     print("✅ Cleanup completed")
 
 def cluster_init():
@@ -467,6 +481,8 @@ def main():
         start_samba_vm(config)
         make_distribute_ssh_keys(config)
         print("Single Ceph + Samba clone not yet refactored")
+    if "--start-winbind" in args:
+        start_windows_vm()
 
 if __name__ == "__main__":
     main()
