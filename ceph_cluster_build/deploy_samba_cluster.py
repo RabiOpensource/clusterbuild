@@ -63,7 +63,7 @@ def copy_from_file(host, src, dest, user="root"):
     try:
         subprocess.run(scp_cmd, shell=True, check=True)
     except subprocess.CalledProcessError as e:
-        print(f"❌ File copy from {host} failed: {e}")
+        print(f"❌ File copy to {host} failed: {e}")
 
 def copy_file(host, src, dest, user="root"):
     scp_cmd = f"scp -o StrictHostKeyChecking=no {src} {user}@{host}:{dest}"
@@ -257,7 +257,7 @@ def mount_cephfs(mount_point="/mnt/cephfs"):
 
         print("executing command " + cmd)
         output = run_cmd(cmd, check=False)
-        if "mount" in output.lower() or os.path.ismount(mount_point):
+        if is_mounted(mount_point):
             print(f"✅ CephFS mounted at {mount_point}")
             return True
         else:
