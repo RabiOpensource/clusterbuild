@@ -349,7 +349,9 @@ def start_windows_vm():
     print(f"🚀 Starting Windows VM {windows_vm}")
     try:
         start_vm(windows_vm)
-        time.sleep(10)
+        time.sleep(60)
+        windows_server_ip = get_vm_ips(windows_vm)
+        update_config("WIN_SERVER_IP",windows_server_ip)
     except Exception as e:
         print(f"❌ Failed to start Samba VM {samba_vm_name}: {e}")
     print(f"✅ Windows VM {windows_vm} started")
@@ -443,9 +445,9 @@ def provision_samba_node():
                 copy_file(host_name, "deploy_samba_cluster.py", "deploy_samba_cluster.py", ssh_user)
                 copy_file(host_name, "configurecluster.py", "configurecluster.py", ssh_user)
                 run_remote(host_name, "python3 deploy_samba_cluster.py", ssh_user)
-                print(f"✅ Samba node {samba_vm_name} provisioned successfully")
+                print(f"✅ Samba node {samba_vm} provisioned successfully")
             except Exception as e:
-                print(f"❌ Failed to provision Samba node {samba_vm_name}: {e}")
+                print(f"❌ Failed to provision Samba node {samba_vm}: {e}")
 
 
 def cleanup_vms(config):
@@ -483,6 +485,7 @@ def cleanup_vms(config):
     remove_config("JOIN_TO_WINDOWS")
     remove_config("CONFIGURE_CEPH")
     remove_config("SAMBA_CLUSTERING")
+    remove_config("WIN_SERVER_IP")
     print("✅ Cleanup completed")
 
 def cluster_init():
