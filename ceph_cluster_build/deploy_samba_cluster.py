@@ -156,6 +156,7 @@ def get_ceph_file_system_name():
     ceph_head_node = read_config("CEPH_HEAD_NODE")
     if ceph_head_node is None:
         print("❌ System is not configured properly. Reconfigure it")
+        return None
 
     output = run_remote(ceph_head_node, "ceph fs ls")
     if not output:
@@ -291,7 +292,7 @@ def is_mounted(mount_point: str) -> bool:
         print(f"Error checking mounts: {e}")
         return False
 
-def join_windows_server(path="", domain="CEPHSMB.LOCAL", user="Administrator", password="Rabi@1234"):
+def join_windows_server(path="", domain="CIFSSMB.LOCAL", user="Administrator", password="Rabi@1234"):
     domain_name = read_config("WINDOWS_DOMAIN")
     domain_user = read_config("DOMAIN_USER")
     domain_password = read_config("DOMAIN_PASSWORD")
@@ -313,41 +314,73 @@ def join_windows_server(path="", domain="CEPHSMB.LOCAL", user="Administrator", p
 def write_smb_conf_file():
     samba_cluster = read_config("SAMBA_CLUSTERING")
     configure_ceph = read_config("CONFIGURE_CEPH")
-    ceph_filesystem = get_ceph_file_system_name()
-    prefix_path=read_config("PATH_TO_CONFIGURE")
+    prefix_path = read_config("PATH_TO_CONFIGURE") or "/usr/local/samba"
     valid_user = "user1"
-    if configure_ceph is None:
-        os.makedirs("/sambashare", exist_ok=True)
-    global_section = f"""
-[global]
-        log level = 1
+    winbind_config = read_config("JOIN_TO_WINDOWS")  # <-- fix undefined var
 
-"""
+    # Ensure default share dir exists if Ceph is not configured
+    if not configure_ceph:
+        os.makedirs("/sambashare", exist_ok=True)
+
+    # Build [global] section
+    global_conf = [
+        "[global]",
+        "    workgroup = CIFSSMB",
+        "    log level = 1",
+    ]
+
+    if winbind_config:
+        print("Comming here for check winbind config")
+        global_conf += [
+            "    security = ADS",
+            "    realm = CIFSSMB.LOCAL",
+            "",
+            "    # Use winbind",
+            "    winbind use default domain = yes",
+            "    winbind enum users  = yes",
+            "    winbind enum groups = yes",
+            "",
+            "    # ID mapping",
+            "    idmap config * : backend = tdb",
+            "    idmap config * : range = 3000-7999",
+            "    idmap config CIFSSMB : backend = rid",
+            "    idmap config CIFSSMB : range = 10000-999999",
+        ]
+
     if samba_cluster:
-        global_section += "        clustering = yes\n"
-    if configure_ceph :
+        global_conf.append("    clustering = yes")
+
+    # Build [share1] section
+    if configure_ceph:
+        ceph_filesystem = get_ceph_file_system_name()
         additional_conf = f"""
 [share1]
-        vfs objects = ceph_new
-        path = /
-        valid users = root {valid_user}
-        ceph_new: filesystem = {ceph_filesystem}
-        ceph_new: user_id = {valid_user}
-        ceph_new: config_file = /etc/ceph/ceph.conf
-        browseable = yes
-        read only = no
- """
+    vfs objects = ceph_new
+    path = /
+    valid users = root {valid_user}
+    ceph_new: filesystem = {ceph_filesystem}
+    ceph_new: user_id = {valid_user}
+    ceph_new: config_file = /etc/ceph/ceph.conf
+    browseable = yes
+    read only = no
+"""
     else:
         additional_conf = f"""
 [share1]
-        path = /sambashare
-        browseable = yes
-        read only = no
-
+    path = /sambashare
+    browseable = yes
+    read only = no
 """
-    smb_conf = global_section + additional_conf
-    os.makedirs(f"{prefix_path}/etc/", exist_ok=True)
-    with open(f"{prefix_path}/etc/smb.conf", "w") as f:
+
+    # Combine everything
+    smb_conf = "\n".join(global_conf) + "\n" + additional_conf
+
+    # Ensure output path exists
+    conf_dir = os.path.join(prefix_path, "etc")
+    os.makedirs(conf_dir, exist_ok=True)
+
+    # Write smb.conf
+    with open(os.path.join(conf_dir, "smb.conf"), "w") as f:
         f.write(smb_conf)
 
 def build_installsamba_script():
@@ -377,6 +410,8 @@ def samba_node_init():
     net_interace = read_config("NETWORK_INTERFACE")
     no_samba_vms = int(read_config("NO_OF_SAMBA_VMS"))
     winbind_server = read_config("JOIN_TO_WINDOWS")
+
+    write_smb_conf_file()
     samba_nodes = [
         f"{base_ip}{ip}"
         for ip in range(start_ip + no_of_vms - no_samba_vms, start_ip + no_of_vms)
@@ -386,7 +421,6 @@ def samba_node_init():
         get_ceph_conf_file()
         generating_ceph_key_ring()
         mount_cephfs()
-    write_smb_conf_file()
     if samba_cluster:
         write_ctdb_conf_file()
         write_ip_to_node(prefix_path, samba_nodes)
@@ -443,7 +477,7 @@ def main():
         return
     build_installsamba_script()
 
-    run_cmd(f"bash installsamba.sh")
+    #run_cmd(f"bash installsamba.sh")
 
     if samba_cluster:
         print(f"\n⚙️ Setting up Samba + CTDB on {host}")
