@@ -351,9 +351,9 @@ def start_windows_vm():
         start_vm(windows_vm)
         time.sleep(60)
         windows_server_ip = get_vm_ips(windows_vm)
-        update_config("WIN_SERVER_IP",windows_server_ip)
+        update_config("WIN_SERVER_IP",windows_server_ip[0])
     except Exception as e:
-        print(f"❌ Failed to start Samba VM {samba_vm_name}: {e}")
+        print(f"❌ Failed to start Samba VM {windows_vm}: {e}")
     print(f"✅ Windows VM {windows_vm} started")
 
 def start_samba_vm(config):
