@@ -292,11 +292,26 @@ def is_mounted(mount_point: str) -> bool:
         print(f"Error checking mounts: {e}")
         return False
 
-def join_windows_server(path="", domain="CIFSSMB.LOCAL", user="Administrator", password="Rabi@1234"):
+def update_resolve_conf(ip, domain="cifssmb.local"):
+    if ip is None:
+        print("Windows server ip is not configured")
+        sys.exit(1)
+    resolv_conf_content = f"""nameserver {ip}
+search {domain}
+"""
+    try:
+        with open("/etc/resolv.conf", "w") as f:
+            f.write(resolv_conf_content)
+        print(f"/etc/resolv.conf updated with nameserver {ip} and search {domain}")
+    except Exception as e:
+        print(f"❌ Failed to update /etc/resolv.conf: {e}")
+
+def join_windows_server(path="", domain="cifssmb.local", user="Administrator", password="Rabi@1234"):
     domain_name = read_config("WINDOWS_DOMAIN")
     domain_user = read_config("DOMAIN_USER")
     domain_password = read_config("DOMAIN_PASSWORD")
     prefix_path = read_config("PATH_TO_CONFIGURE")
+    win_server_ip = read_config("WIN_SERVER_IP")
 
     if domain_name is None:
         domain_name = domain
@@ -307,9 +322,14 @@ def join_windows_server(path="", domain="CIFSSMB.LOCAL", user="Administrator", p
     if prefix_path is None:
         prefix_path = path
 
+    update_resolve_conf(win_server_ip, domain_name)
+    time.sleep(2)
+
     # NOTE: Replace credentials with secure source!
-    run_cmd(f"{prefix_path}/bin/net ads join -U {domain_user}%{domain_password} -S {domain_name}")
-    print(f"✅ Joined Windows domain {domain}")
+    if run_cmd(f"{prefix_path}/bin/net ads join -U {domain_user}%{domain_password} -S {domain_name}", check=True):
+        print(f"❌ Failed to join Windows domain {domain}")
+    else:
+        print(f"✅ Joined Windows domain {domain}")
 
 def write_smb_conf_file():
     samba_cluster = read_config("SAMBA_CLUSTERING")
@@ -333,7 +353,7 @@ def write_smb_conf_file():
         print("Comming here for check winbind config")
         global_conf += [
             "    security = ADS",
-            "    realm = CIFSSMB.LOCAL",
+            "    realm = cifssmb.local",
             "",
             "    # Use winbind",
             "    winbind use default domain = yes",
