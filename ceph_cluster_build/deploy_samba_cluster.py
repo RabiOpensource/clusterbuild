@@ -44,8 +44,6 @@ def run_cmd(cmd, check=True):
         print(f"❌ Local command failed: {e}")
 
 def run_remote(host, command, user="root", wait=True):
-    import subprocess
-
     ssh_cmd = f"ssh -o StrictHostKeyChecking=no {user}@{host} '{command}'"
     print(f"▶️ Running remote on {host}: {command}")
 
@@ -152,34 +150,25 @@ def ceph_fuse_install():
 def update_local_mount():
     run_cmd("mkdir -p /mnt/commonfs")
 
-def get_ceph_file_system_name():
+def get_ceph_file_system_name(delay=3):
     ceph_head_node = read_config("CEPH_HEAD_NODE")
-    if ceph_head_node is None:
+    if not ceph_head_node:
         print("❌ System is not configured properly. Reconfigure it")
         return None
 
-    output = run_remote(ceph_head_node, "ceph fs ls")
-    if not output:
-        print("❌ Failed to get Ceph file systems from head node")
-        return None
+    while True:
+        output = run_remote(ceph_head_node, "ceph fs ls")
+        if output:
+            fs_names = [
+                line.split("name:")[1].split(",")[0].strip()
+                for line in output.splitlines()
+                if line.strip().startswith("name:")
+            ]
+            if fs_names:
+                return fs_names[0] if len(fs_names) == 1 else fs_names
 
-    fs_names = []
-    for line in output.splitlines():
-        line = line.strip()
-        if line.startswith("name:"):
-            # Format: name: cephfs, metadata pool: ...
-            try:
-                fs_name = line.split("name:")[1].split(",")[0].strip()
-                fs_names.append(fs_name)
-            except IndexError:
-                continue
-
-    if not fs_names:
-        print("❌ No filesystem name found in ceph fs ls output")
-        return None
-
-    # Return first one if only single FS is expected
-    return fs_names[0] if len(fs_names) == 1 else fs_names
+        print(f"⚠️ Waiting for get file system ...")
+        time.sleep(delay)
 
 def generating_ceph_key_ring():
     samba_user = read_config("SAMBA_USER") or "user1"
@@ -497,7 +486,7 @@ def main():
         return
     build_installsamba_script()
 
-    #run_cmd(f"bash installsamba.sh")
+    run_cmd(f"bash installsamba.sh")
 
     if samba_cluster:
         print(f"\n⚙️ Setting up Samba + CTDB on {host}")
